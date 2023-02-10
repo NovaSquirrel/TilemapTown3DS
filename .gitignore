@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+*.3dsx
+*.elf
+*.smdh
+*.map
+*.lst
