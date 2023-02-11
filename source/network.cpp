@@ -34,6 +34,20 @@ static u32 *SOC_buffer = NULL;
 
 // ----------------------------------------------
 
+ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int flags, void *user_data);
+ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len, int flags, void *user_data);
+int wslay_genmask(wslay_event_context_ptr ctx, uint8_t *buf, size_t len, void *user_data);
+void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_recv_arg *arg, void *user_data);
+struct wslay_event_callbacks wslay_callbacks = {
+	wslay_recv,
+	wslay_send,
+	wslay_genmask,
+	NULL,
+	NULL,
+	NULL,
+	wslay_message,
+};
+
 int network_init() {
 	int ret;
 
@@ -148,8 +162,8 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 		puts("mbedtls_net_connect failed");
         goto fail;
 	}
-	if(mbedtls_net_set_nonblock(&this->server_fd)) {
-		puts("mbedtls_net_set_nonblock failed");
+	if(mbedtls_net_set_block(&this->server_fd)) {
+		puts("mbedtls_net_set_block failed");
 		goto fail;
 	}
 
@@ -204,30 +218,52 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	puts("mbedtls_ssl_read");
 
     // Read
+	len = 0;
     do {
-        len = sizeof(buf) - 1;
         memset(buf, 0, sizeof(buf));
 
-        ret = mbedtls_ssl_read(&this->ssl, buf, len);
+        ret = mbedtls_ssl_read(&this->ssl, buf, sizeof(buf)-len-1);
         if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
             continue;
-        }
-        if(ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-            break;
-        }
-        if(ret < 0) {
+        } else if(ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+			puts("Server disconnected");
+            goto fail;
+        } else if(ret < 0) {
             mbedtls_printf("failed\n  ! mbedtls_ssl_read returned %d\n\n", ret);
-            break;
-        }
-        if(ret == 0) {
+            goto fail;
+        } else if(ret == 0) {
             mbedtls_printf("\n\nEOF\n\n");
             break;
         }
+		len += ret;
+		buf[len] = 0;
 
-        len = ret;
-		printf("%d bytes read\n", len);
-		printf("Data read: %s\n", (char*)buf);
-    } while (1);
+		if(strstr((const char*)buf, "\r\n\r\n")) { // Handshake complete
+			if(strstr((const char*)buf, "Sec-WebSocket-Accept")) {
+				puts("Handshake successful");
+				break;
+			} else {
+				puts("Handshake failed");
+			}
+		}
+
+		printf("%d bytes read\n", ret);
+    } while(1);
+
+	// Switch it to nonblocking mode
+	if(mbedtls_net_set_nonblock(&this->server_fd)) {
+		puts("mbedtls_net_set_nonblock failed");
+		goto fail;
+	}
+
+	// Set up websockets
+	if(wslay_event_context_client_init(&this->websocket, &wslay_callbacks, this)) {
+		puts("wslay_event_context_client_init failed");
+		goto fail;
+	}
+	wslay_event_config_set_max_recv_msg_length(this->websocket, 0x80000*2); // 1024KB
+
+	this->websocket_write("IDN");
 
 	this->connected = true;
 	return 1;
@@ -253,10 +289,76 @@ void TilemapTownClient::network_disconnect() {
 		mbedtls_ctr_drbg_free(&this->ctr_drbg);
 		mbedtls_entropy_free(&this->entropy);
 
+		wslay_event_context_free(this->websocket);
+
 		this->connected = false;
 	}
 }
 
 void TilemapTownClient::network_update() {
-
+	wslay_event_recv(this->websocket);
+	if(wslay_event_want_write(this->websocket))
+        wslay_event_send(this->websocket);
 }
+
+// ----------------------------------------------
+// - Websockets
+// ----------------------------------------------
+
+ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int flags, void *user_data) {
+	TilemapTownClient *client = (TilemapTownClient*)user_data;
+
+	int ret = mbedtls_ssl_read(&client->ssl, data, len);
+	if(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_WRITE || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
+		return WSLAY_ERR_WOULDBLOCK;
+	return ret;
+}
+
+ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len, int flags, void *user_data) {
+	TilemapTownClient *client = (TilemapTownClient*)user_data;
+
+	int ret = mbedtls_ssl_write(&client->ssl, data, len);
+	if(ret == MBEDTLS_ERR_SSL_WANT_WRITE || ret == MBEDTLS_ERR_SSL_WANT_READ)
+		return WSLAY_ERR_WOULDBLOCK;
+	return ret;
+}
+
+int wslay_genmask(wslay_event_context_ptr ctx, uint8_t *buf, size_t len, void *user_data) {
+	for(size_t i=0; i<len; i++)
+		buf[i] = rand()&255;
+	return 0;
+}
+
+char line[0x40000]; // 256KB
+void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_recv_arg *arg, void *user_data) {
+	TilemapTownClient *client = (TilemapTownClient*)user_data;
+
+	if(arg->opcode == WSLAY_TEXT_FRAME) {
+		if(arg->msg_length >= (sizeof(line)-1)) {
+			puts("Message is too big");
+			return;
+		}
+		memcpy(line, arg->msg, arg->msg_length);
+		line[arg->msg_length] = 0;
+
+		printf("Received %c%c%c\n", line[0], line[1], line[2]);
+		if(line[0] == 'P' && line[1] == 'I' && line[2] == 'N') {
+			client->websocket_write("PIN");
+		}
+		if(line[0] == 'M' && line[1] == 'S' && line[2] == 'G') {
+			puts(line);
+		}
+	} else if(arg->opcode == WSLAY_CONNECTION_CLOSE) {
+		puts("Connection closed");
+		client->network_disconnect();
+	}
+}
+
+void TilemapTownClient::websocket_write(std::string text) {
+  struct wslay_event_msg event_message;
+  event_message.opcode = WSLAY_TEXT_FRAME;
+  event_message.msg = (const uint8_t*)text.c_str();
+  event_message.msg_length = text.size();
+  wslay_event_queue_msg(this->websocket, &event_message);
+}
+

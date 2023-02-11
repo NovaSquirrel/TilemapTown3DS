@@ -39,9 +39,6 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
-#define NETWORK_WRITE_BUFLEN 2048
-#define NETWORK_READ_BUFLEN 16384
-
 class TownMap {
 	int width, height;
 
@@ -85,8 +82,9 @@ class MapTileInfo {
 };
 
 class TilemapTownClient {
+public:
 	// Network
-	struct wslay_event_context *websocket;
+	wslay_event_context_ptr websocket;
 
 	// TLS
     mbedtls_net_context server_fd;
@@ -109,7 +107,6 @@ class TilemapTownClient {
 
 	bool fly;
 
-public:
 	void websocket_write(std::string text);
 	int network_connect(std::string host, std::string path, std::string port);
 	void network_disconnect();
