@@ -20,4 +20,6 @@
 
 using namespace std;
 
-
+void TilemapTownClient::log_message(std::string text, std::string style) {
+	puts(text.c_str());
+}

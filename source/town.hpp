@@ -39,6 +39,15 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
+struct http_transfer {
+	uint8_t *memory;
+	size_t size;
+
+	int type;
+};
+
+// ------------------------------------
+
 class TownMap {
 	int width, height;
 
@@ -81,10 +90,14 @@ class MapTileInfo {
 	bool obj;
 };
 
+// ------------------------------------
+
 class TilemapTownClient {
 public:
 	// Network
 	wslay_event_context_ptr websocket;
+	CURLM *http;
+	bool http_in_progress;
 
 	// TLS
     mbedtls_net_context server_fd;
@@ -107,9 +120,11 @@ public:
 
 	bool fly;
 
+	void http_get(std::string url, int request_type);
 	void websocket_write(std::string text);
+	void websocket_message(const char *text, size_t length);
 	int network_connect(std::string host, std::string path, std::string port);
 	void network_disconnect();
 	void network_update();
+	void log_message(std::string text, std::string style);
 };
-

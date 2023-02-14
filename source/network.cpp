@@ -24,20 +24,25 @@
 #include <malloc.h>
 #endif
 
+// ----------------------------------------------
+// - Defines
+// ----------------------------------------------
+
 #ifdef __3DS__
 // 3DS socket buffer
 #define SOC_ALIGN       0x1000
 #define SOC_BUFFERSIZE  0x100000
 #endif
 
-static u32 *SOC_buffer = NULL;
-
+// ----------------------------------------------
+// - Globals
 // ----------------------------------------------
 
 ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int flags, void *user_data);
 ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len, int flags, void *user_data);
 int wslay_genmask(wslay_event_context_ptr ctx, uint8_t *buf, size_t len, void *user_data);
 void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_recv_arg *arg, void *user_data);
+
 struct wslay_event_callbacks wslay_callbacks = {
 	wslay_recv,
 	wslay_send,
@@ -47,6 +52,12 @@ struct wslay_event_callbacks wslay_callbacks = {
 	NULL,
 	wslay_message,
 };
+
+static u32 *SOC_buffer = NULL;
+
+// ----------------------------------------------
+// - Initialization
+// ----------------------------------------------
 
 int network_init() {
 	int ret;
@@ -66,54 +77,22 @@ int network_init() {
 		return 0;
 	}
 	#endif
+
+	curl_global_init(CURL_GLOBAL_DEFAULT);
+
 	return 1;
 }
 
 void network_finish() {
 	curl_global_cleanup();
+
 	#ifdef __3DS__
 	socExit();
 	#endif
 }
 
 // ----------------------------------------------
-
-void curl_test() {
-	CURL *curl;
-	CURLcode res;
-
-	curl_global_init(CURL_GLOBAL_DEFAULT);
-
-	curl = curl_easy_init();
-	if(curl) {
-		curl_easy_setopt(curl, CURLOPT_URL, "https://novasquirrel.com/robots.txt");
-
-		// maybe CURLOPT_CAPATH
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-
-		#ifdef SKIP_HOSTNAME_VERIFICATION
-		/*
-		 * If the site you are connecting to uses a different host name that what
-		 * they have mentioned in their server certificate's commonName (or
-		 * subjectAltName) fields, libcurl will refuse to connect. You can skip
-		 * this check, but this will make the connection less secure.
-		 */
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-		#endif
-
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		printf("Result: %d\n", res);
-		/* Check for errors */
-		if(res != CURLE_OK)
-		  printf("curl_easy_perform() failed: %s\n",
-				  curl_easy_strerror(res));
-
-			/* always cleanup */
-			curl_easy_cleanup(curl);
-	}
-}
-
+// - Connection management
 // ----------------------------------------------
 
 static void my_debug(void *ctx, int level,
@@ -157,7 +136,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	}
 
 	// Start connection
-	puts("mbedtls_net_connect");
+	//puts("mbedtls_net_connect");
 	if(mbedtls_net_connect(&this->server_fd, host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP) != 0) {
 		puts("mbedtls_net_connect failed");
         goto fail;
@@ -168,7 +147,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	}
 
 	// Setup
-	puts("mbedtls_ssl_config_defaults");
+	//puts("mbedtls_ssl_config_defaults");
 	if(mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT) != 0) {
 		puts("mbedtls_ssl_config_defaults failed");
 		goto fail;
@@ -191,7 +170,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 
 	mbedtls_ssl_set_bio(&this->ssl, &this->server_fd, mbedtls_net_send, mbedtls_net_recv, NULL); // Set what functions to use for reading and writing
 
-	puts("mbedtls_ssl_handshake");
+	//puts("mbedtls_ssl_handshake");
 
 	// Handshake
 	while((ret = mbedtls_ssl_handshake(&this->ssl)) != 0) {
@@ -205,7 +184,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 
 	len = connect_string.length();
 
-	puts("mbedtls_ssl_write");
+	//puts("mbedtls_ssl_write");
 
 	// Write
     while((ret = mbedtls_ssl_write(&this->ssl, (const unsigned char*)connect_string.c_str(), len)) <= 0) {
@@ -215,7 +194,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
         }
     }
 
-	puts("mbedtls_ssl_read");
+	//puts("mbedtls_ssl_read");
 
     // Read
 	len = 0;
@@ -256,6 +235,12 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 		goto fail;
 	}
 
+	// Set up HTTP
+	this->http = curl_multi_init();
+	if(!this->http)
+		goto fail;
+	this->http_in_progress = false;
+
 	// Set up websockets
 	if(wslay_event_context_client_init(&this->websocket, &wslay_callbacks, this)) {
 		puts("wslay_event_context_client_init failed");
@@ -275,6 +260,7 @@ fail:
     mbedtls_ssl_config_free(&this->conf);
     mbedtls_ctr_drbg_free(&this->ctr_drbg);
     mbedtls_entropy_free(&this->entropy);
+	curl_multi_cleanup(this->http); // It's safe to pass in NULL
 	return 0;
 }
 
@@ -291,6 +277,8 @@ void TilemapTownClient::network_disconnect() {
 
 		wslay_event_context_free(this->websocket);
 
+		curl_multi_cleanup(this->http);
+
 		this->connected = false;
 	}
 }
@@ -299,6 +287,75 @@ void TilemapTownClient::network_update() {
 	wslay_event_recv(this->websocket);
 	if(wslay_event_want_write(this->websocket))
         wslay_event_send(this->websocket);
+	if(this->http_in_progress) {
+		// Update all http transfers
+		int still_running;
+		curl_multi_perform(this->http, &still_running);
+		if(!still_running)
+			this->http_in_progress = false;
+
+		// Check on all transfers
+		int queue_size;
+		CURLMsg *transfer_info;
+		while((transfer_info = curl_multi_info_read(this->http, &queue_size))) {
+			if(transfer_info->msg != CURLMSG_DONE)
+				continue;
+			CURL *easy = transfer_info->easy_handle;
+			CURLcode result = transfer_info->data.result; // https://curl.se/libcurl/c/libcurl-errors.html - error if nonzero
+			struct http_transfer *transfer_data;
+			if(curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char*)&transfer_data) != CURLE_OK)
+				continue;
+
+			if(result == CURLE_OK) {
+				// TODO
+			} else {
+				puts(curl_easy_strerror(result));
+			}
+
+			// Clean up
+			if(transfer_data->memory)
+				free(transfer_data->memory);
+			free(transfer_data);
+			curl_multi_remove_handle(this->http, easy);
+			curl_easy_cleanup(easy);
+		}
+	}
+}
+
+// ----------------------------------------------
+// - HTTP
+// ----------------------------------------------
+
+size_t http_write_callback(void *contents, size_t size, size_t nmemb, void *userdata) {
+	struct http_transfer *transfer = (struct http_transfer*)userdata;
+	size_t real_size = size * nmemb;
+
+	transfer->memory = (uint8_t*)realloc(transfer->memory, transfer->size + real_size);
+	if(!transfer->memory)
+		return 0;
+	memcpy(transfer->memory + transfer->size, contents, real_size);
+	transfer->size += real_size;
+	return real_size;
+}
+
+void TilemapTownClient::http_get(std::string url, int request_type) {
+	struct http_transfer *transfer = (struct http_transfer*)calloc(1, sizeof(struct http_transfer));
+	if(!transfer)
+		return;
+	transfer->type = request_type;
+	CURL *curl = curl_easy_init();
+
+	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1); // Don't use a progress eter
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_write_callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA,     transfer);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+	curl_easy_setopt(curl, CURLOPT_PRIVATE, transfer);
+
+	curl_multi_add_handle(this->http, curl);
+
+	this->http_in_progress = true;
 }
 
 // ----------------------------------------------
@@ -329,25 +386,10 @@ int wslay_genmask(wslay_event_context_ptr ctx, uint8_t *buf, size_t len, void *u
 	return 0;
 }
 
-char line[0x40000]; // 256KB
 void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_recv_arg *arg, void *user_data) {
 	TilemapTownClient *client = (TilemapTownClient*)user_data;
-
 	if(arg->opcode == WSLAY_TEXT_FRAME) {
-		if(arg->msg_length >= (sizeof(line)-1)) {
-			puts("Message is too big");
-			return;
-		}
-		memcpy(line, arg->msg, arg->msg_length);
-		line[arg->msg_length] = 0;
-
-		printf("Received %c%c%c\n", line[0], line[1], line[2]);
-		if(line[0] == 'P' && line[1] == 'I' && line[2] == 'N') {
-			client->websocket_write("PIN");
-		}
-		if(line[0] == 'M' && line[1] == 'S' && line[2] == 'G') {
-			puts(line);
-		}
+		client->websocket_message((const char*)arg->msg, arg->msg_length);
 	} else if(arg->opcode == WSLAY_CONNECTION_CLOSE) {
 		puts("Connection closed");
 		client->network_disconnect();
@@ -361,4 +403,3 @@ void TilemapTownClient::websocket_write(std::string text) {
   event_message.msg_length = text.size();
   wslay_event_queue_msg(this->websocket, &event_message);
 }
-
