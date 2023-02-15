@@ -278,7 +278,7 @@ void TilemapTownClient::network_update() {
 	wslay_event_recv(this->websocket);
 	if(wslay_event_want_write(this->websocket))
         wslay_event_send(this->websocket);
-	this->file_cache.run_transfers();
+	this->http.run_transfers();
 }
 
 // ----------------------------------------------
@@ -301,11 +301,13 @@ HttpFileCache::~HttpFileCache() {
 size_t http_write_callback(void *contents, size_t size, size_t nmemb, void *userdata) {
 	struct http_file *file = (struct http_file*)userdata;
 	size_t real_size = size * nmemb;
+	//printf("http_write_callback %d \n", real_size);
 
 	file->memory = (uint8_t*)realloc(file->memory, file->size + real_size);
 	if(!file->memory)
 		return 0;
 	memcpy(file->memory + file->size, contents, real_size);
+
 	file->size += real_size;
 	return real_size;
 }
@@ -333,7 +335,7 @@ void HttpFileCache::run_transfers() {
 
 			// Call callback function with the data retrieved
 			if(result == CURLE_OK) {
-				transfer->callback(transfer->file.memory, transfer->file.size, transfer->userdata);
+				transfer->callback(transfer->url, transfer->file.memory, transfer->file.size, transfer->userdata);
 			} else {
 				puts(curl_easy_strerror(result));
 			}
@@ -353,7 +355,7 @@ void HttpFileCache::run_transfers() {
 	}
 }
 
-void HttpFileCache::http_get(std::string url, void (*callback) (uint8_t *data, size_t size, void *userdata), void *userdata) {
+void HttpFileCache::http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata), void *userdata) {
 	// Don't request it if it's currently being requested
 	if(this->requested_urls.find(url) != this->requested_urls.end()) {
 		return;
@@ -363,13 +365,15 @@ void HttpFileCache::http_get(std::string url, void (*callback) (uint8_t *data, s
 	std::unordered_map<std::string, struct http_file>::iterator it;
 	it = this->cache.find(url);
 	if(it != this->cache.end()) {
-		callback((*it).second.memory, (*it).second.size, userdata);
+		// If it's already there, don't re-request it, just get the cached version
+		callback(url.c_str(), (*it).second.memory, (*it).second.size, userdata);
 		return;
 	}
 
 	// Stop this url from being requested again until the transfer has finished
 	this->requested_urls.insert(url);
 
+	// Set up the transfer and start it
 	struct http_transfer *transfer = (struct http_transfer*)calloc(1, sizeof(struct http_transfer));
 	if(!transfer)
 		return;
@@ -380,9 +384,9 @@ void HttpFileCache::http_get(std::string url, void (*callback) (uint8_t *data, s
 	CURL *curl = curl_easy_init();
 
 	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1); // Don't use a progress eter
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1); // Don't use a progress meter
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA,     transfer->file);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA,     &transfer->file);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	curl_easy_setopt(curl, CURLOPT_PRIVATE, transfer);

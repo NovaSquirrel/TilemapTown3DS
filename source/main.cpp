@@ -35,6 +35,11 @@ void wait_for_key() {
 	}
 }
 
+void http_callback(const char *url, uint8_t *memory, size_t size, void *userdata) {
+	puts("Callback called");
+	printf("Url %s Size %d\n", url, size);
+}
+
 int main(int argc, char* argv[]) {
 	TilemapTownClient client;
 
@@ -61,6 +66,11 @@ int main(int argc, char* argv[]) {
 		client.network_update();
 
 		u32 kDown = hidKeysDown();
+		if (kDown & KEY_A) {
+			puts("Requesting");
+			client.http.http_get("https://novasquirrel.com/robots.txt", http_callback, NULL);
+		}
+
 		if (kDown & KEY_START)
 			break;
 	}

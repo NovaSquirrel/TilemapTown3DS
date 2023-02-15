@@ -48,7 +48,7 @@ struct http_transfer {
 	struct http_file file;
 	const char *url;
 
-	void (*callback) (uint8_t *data, size_t size, void *userdata);
+	void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata);
 	void *userdata;
 };
 
@@ -108,7 +108,7 @@ public:
 	HttpFileCache();
 	~HttpFileCache();
 
-	void http_get(std::string url, void (*callback) (uint8_t *data, size_t size, void *userdata), void *userdata);
+	void http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata), void *userdata);
 	void run_transfers();
 };
 
@@ -116,7 +116,7 @@ class TilemapTownClient {
 public:
 	// Network
 	wslay_event_context_ptr websocket;
-	HttpFileCache file_cache;
+	HttpFileCache http;
 
 	// TLS
     mbedtls_net_context server_fd;
