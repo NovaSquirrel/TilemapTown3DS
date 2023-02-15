@@ -19,8 +19,8 @@
 
 #include <vector>
 #include <string>
-#include <map>
-#include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -39,11 +39,17 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
-struct http_transfer {
+struct http_file {
 	uint8_t *memory;
 	size_t size;
+};
 
-	int type;
+struct http_transfer {
+	struct http_file file;
+	const char *url;
+
+	void (*callback) (uint8_t *data, size_t size, void *userdata);
+	void *userdata;
 };
 
 // ------------------------------------
@@ -70,7 +76,7 @@ class Entity {
 	int y;
 
 	std::string vehicle_id;
-	std::set <std::string> passengers;
+	std::unordered_set <std::string> passengers;
 	bool is_following;
 
 	bool is_typing;
@@ -92,12 +98,25 @@ class MapTileInfo {
 
 // ------------------------------------
 
+class HttpFileCache {
+	std::unordered_map<std::string, struct http_file> cache;
+	CURLM *http;
+	std::unordered_set <std::string> requested_urls;
+	bool http_in_progress;
+
+public:
+	HttpFileCache();
+	~HttpFileCache();
+
+	void http_get(std::string url, void (*callback) (uint8_t *data, size_t size, void *userdata), void *userdata);
+	void run_transfers();
+};
+
 class TilemapTownClient {
 public:
 	// Network
 	wslay_event_context_ptr websocket;
-	CURLM *http;
-	bool http_in_progress;
+	HttpFileCache file_cache;
 
 	// TLS
     mbedtls_net_context server_fd;
@@ -110,8 +129,8 @@ public:
 
 	// Game state
 	TownMap town_map;
-	std::map<std::string, MapTileInfo> tileset;
-	std::map<std::string, Entity> who;
+	std::unordered_map<std::string, MapTileInfo> tileset;
+	std::unordered_map<std::string, Entity> who;
 
 	// Player state
 	std::string your_id;
@@ -120,7 +139,6 @@ public:
 
 	bool fly;
 
-	void http_get(std::string url, int request_type);
 	void websocket_write(std::string text);
 	void websocket_message(const char *text, size_t length);
 	int network_connect(std::string host, std::string path, std::string port);

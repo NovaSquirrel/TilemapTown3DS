@@ -235,12 +235,6 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 		goto fail;
 	}
 
-	// Set up HTTP
-	this->http = curl_multi_init();
-	if(!this->http)
-		goto fail;
-	this->http_in_progress = false;
-
 	// Set up websockets
 	if(wslay_event_context_client_init(&this->websocket, &wslay_callbacks, this)) {
 		puts("wslay_event_context_client_init failed");
@@ -260,7 +254,6 @@ fail:
     mbedtls_ssl_config_free(&this->conf);
     mbedtls_ctr_drbg_free(&this->ctr_drbg);
     mbedtls_entropy_free(&this->entropy);
-	curl_multi_cleanup(this->http); // It's safe to pass in NULL
 	return 0;
 }
 
@@ -277,8 +270,6 @@ void TilemapTownClient::network_disconnect() {
 
 		wslay_event_context_free(this->websocket);
 
-		curl_multi_cleanup(this->http);
-
 		this->connected = false;
 	}
 }
@@ -287,6 +278,39 @@ void TilemapTownClient::network_update() {
 	wslay_event_recv(this->websocket);
 	if(wslay_event_want_write(this->websocket))
         wslay_event_send(this->websocket);
+	this->file_cache.run_transfers();
+}
+
+// ----------------------------------------------
+// - HTTP
+// ----------------------------------------------
+
+HttpFileCache::HttpFileCache() {
+	this->http = curl_multi_init();
+	this->http_in_progress = false;
+}
+
+HttpFileCache::~HttpFileCache() {
+	for(const auto& kv : this->cache) {
+		free(kv.second.memory);
+	}
+
+	curl_multi_cleanup(this->http);
+}
+
+size_t http_write_callback(void *contents, size_t size, size_t nmemb, void *userdata) {
+	struct http_file *file = (struct http_file*)userdata;
+	size_t real_size = size * nmemb;
+
+	file->memory = (uint8_t*)realloc(file->memory, file->size + real_size);
+	if(!file->memory)
+		return 0;
+	memcpy(file->memory + file->size, contents, real_size);
+	file->size += real_size;
+	return real_size;
+}
+
+void HttpFileCache::run_transfers() {
 	if(this->http_in_progress) {
 		// Update all http transfers
 		int still_running;
@@ -296,59 +320,69 @@ void TilemapTownClient::network_update() {
 
 		// Check on all transfers
 		int queue_size;
-		CURLMsg *transfer_info;
-		while((transfer_info = curl_multi_info_read(this->http, &queue_size))) {
-			if(transfer_info->msg != CURLMSG_DONE)
+		CURLMsg *multi_info;
+		while((multi_info = curl_multi_info_read(this->http, &queue_size))) {
+			if(multi_info->msg != CURLMSG_DONE)
 				continue;
-			CURL *easy = transfer_info->easy_handle;
-			CURLcode result = transfer_info->data.result; // https://curl.se/libcurl/c/libcurl-errors.html - error if nonzero
-			struct http_transfer *transfer_data;
-			if(curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char*)&transfer_data) != CURLE_OK)
+			// Get info
+			CURL *easy = multi_info->easy_handle;
+			CURLcode result = multi_info->data.result; // https://curl.se/libcurl/c/libcurl-errors.html - error if nonzero
+			struct http_transfer *transfer;
+			if(curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char*)&transfer) != CURLE_OK)
 				continue;
 
+			// Call callback function with the data retrieved
 			if(result == CURLE_OK) {
-				// TODO
+				transfer->callback(transfer->file.memory, transfer->file.size, transfer->userdata);
 			} else {
 				puts(curl_easy_strerror(result));
 			}
+			free(transfer->userdata);
+
+			// Put it in the cache, and remove from requested URLs
+			std::string url = std::string(transfer->url);
+			this->cache[url] = transfer->file;
+			this->requested_urls.erase(url);
 
 			// Clean up
-			if(transfer_data->memory)
-				free(transfer_data->memory);
-			free(transfer_data);
+			free((void*)transfer->url);
+			free(transfer);
 			curl_multi_remove_handle(this->http, easy);
 			curl_easy_cleanup(easy);
 		}
 	}
 }
 
-// ----------------------------------------------
-// - HTTP
-// ----------------------------------------------
+void HttpFileCache::http_get(std::string url, void (*callback) (uint8_t *data, size_t size, void *userdata), void *userdata) {
+	// Don't request it if it's currently being requested
+	if(this->requested_urls.find(url) != this->requested_urls.end()) {
+		return;
+	}
 
-size_t http_write_callback(void *contents, size_t size, size_t nmemb, void *userdata) {
-	struct http_transfer *transfer = (struct http_transfer*)userdata;
-	size_t real_size = size * nmemb;
+	// Try to find it in the cache
+	std::unordered_map<std::string, struct http_file>::iterator it;
+	it = this->cache.find(url);
+	if(it != this->cache.end()) {
+		callback((*it).second.memory, (*it).second.size, userdata);
+		return;
+	}
 
-	transfer->memory = (uint8_t*)realloc(transfer->memory, transfer->size + real_size);
-	if(!transfer->memory)
-		return 0;
-	memcpy(transfer->memory + transfer->size, contents, real_size);
-	transfer->size += real_size;
-	return real_size;
-}
+	// Stop this url from being requested again until the transfer has finished
+	this->requested_urls.insert(url);
 
-void TilemapTownClient::http_get(std::string url, int request_type) {
 	struct http_transfer *transfer = (struct http_transfer*)calloc(1, sizeof(struct http_transfer));
 	if(!transfer)
 		return;
-	transfer->type = request_type;
+	transfer->callback = callback;
+	transfer->userdata = userdata;
+	transfer->url = strdup(url.c_str());
+
 	CURL *curl = curl_easy_init();
 
 	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1); // Don't use a progress eter
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_write_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA,     transfer);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA,     transfer->file);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 	curl_easy_setopt(curl, CURLOPT_PRIVATE, transfer);
