@@ -79,7 +79,6 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	bit_depth  = png_get_bit_depth(png_ptr, info_ptr);
 	number_of_passes = png_set_interlace_handling(png_ptr);
 	printf("PNG info: %d %d, %d %d %d\n", width, height, color_type, bit_depth, number_of_passes);
-	png_read_update_info(png_ptr, info_ptr);
 
 	// Apply transformations
 	if(color_type == PNG_COLOR_TYPE_PALETTE)
@@ -90,6 +89,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 		png_set_tRNS_to_alpha(png_ptr);
 	if(bit_depth == 16)
 		png_set_strip_16(png_ptr);
+	png_read_update_info(png_ptr, info_ptr);
 
 	// Read pixels
 	if(setjmp(png_jmpbuf(png_ptr))) {
