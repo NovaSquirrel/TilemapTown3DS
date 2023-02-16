@@ -21,6 +21,7 @@
 
 int network_init();
 void network_finish();
+void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTownClient *client, void *userdata);
 
 void wait_for_key() {
 	// Just wait for keys and then exit
@@ -33,11 +34,6 @@ void wait_for_key() {
 		if (kDown & (KEY_START | KEY_A))
 			break;
 	}
-}
-
-void http_callback(const char *url, uint8_t *memory, size_t size, void *userdata) {
-	puts("Callback called");
-	printf("Url %s Size %d\n", url, size);
 }
 
 int main(int argc, char* argv[]) {
@@ -68,7 +64,7 @@ int main(int argc, char* argv[]) {
 		u32 kDown = hidKeysDown();
 		if (kDown & KEY_A) {
 			puts("Requesting");
-			client.http.http_get("https://novasquirrel.com/robots.txt", http_callback, NULL);
+			client.http.http_get("https://novasquirrel.com/town/img/potluck.png", http_png_callback, NULL);
 		}
 
 		if (kDown & KEY_START)

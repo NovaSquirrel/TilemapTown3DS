@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <curl/curl.h>
 #include <wslay/wslay.h>
@@ -39,16 +40,19 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
+class TilemapTownClient;
+
 struct http_file {
 	uint8_t *memory;
 	size_t size;
+	time_t last_accessed;
 };
 
 struct http_transfer {
 	struct http_file file;
 	const char *url;
 
-	void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata);
+	void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata);
 	void *userdata;
 };
 
@@ -103,12 +107,14 @@ class HttpFileCache {
 	CURLM *http;
 	std::unordered_set <std::string> requested_urls;
 	bool http_in_progress;
+	size_t total_size;
 
 public:
+	TilemapTownClient *client;
 	HttpFileCache();
 	~HttpFileCache();
 
-	void http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata), void *userdata);
+	void http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata);
 	void run_transfers();
 };
 

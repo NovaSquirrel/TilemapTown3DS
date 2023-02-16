@@ -242,8 +242,11 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	}
 	wslay_event_config_set_max_recv_msg_length(this->websocket, 0x80000*2); // 1024KB
 
-	this->websocket_write("IDN");
+	// Other initialization
+	this->http.client = this;
 
+	// Kick off the connection!
+	this->websocket_write("IDN");
 	this->connected = true;
 	return 1;
 
@@ -335,7 +338,7 @@ void HttpFileCache::run_transfers() {
 
 			// Call callback function with the data retrieved
 			if(result == CURLE_OK) {
-				transfer->callback(transfer->url, transfer->file.memory, transfer->file.size, transfer->userdata);
+				transfer->callback(transfer->url, transfer->file.memory, transfer->file.size, this->client, transfer->userdata);
 			} else {
 				puts(curl_easy_strerror(result));
 			}
@@ -346,6 +349,9 @@ void HttpFileCache::run_transfers() {
 			this->cache[url] = transfer->file;
 			this->requested_urls.erase(url);
 
+			this->total_size += transfer->file.size;
+			transfer->file.last_accessed = time(NULL);
+
 			// Clean up
 			free((void*)transfer->url);
 			free(transfer);
@@ -355,7 +361,7 @@ void HttpFileCache::run_transfers() {
 	}
 }
 
-void HttpFileCache::http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, void *userdata), void *userdata) {
+void HttpFileCache::http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata) {
 	// Don't request it if it's currently being requested
 	if(this->requested_urls.find(url) != this->requested_urls.end()) {
 		return;
@@ -366,7 +372,8 @@ void HttpFileCache::http_get(std::string url, void (*callback) (const char *url,
 	it = this->cache.find(url);
 	if(it != this->cache.end()) {
 		// If it's already there, don't re-request it, just get the cached version
-		callback(url.c_str(), (*it).second.memory, (*it).second.size, userdata);
+		callback(url.c_str(), (*it).second.memory, (*it).second.size, this->client, userdata);
+		(*it).second.last_accessed = time(NULL);
 		return;
 	}
 
