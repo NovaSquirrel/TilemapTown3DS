@@ -57,7 +57,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= `$(PREFIX)pkg-config --libs libcurl` -lctru -lm -lwslay -lmbedtls -lmbedx509 -lmbedcrypto -lpng
+LIBS	:= `$(PREFIX)pkg-config --libs libcurl` -lctru -lm -lwslay -lmbedtls -lmbedx509 -lmbedcrypto -lpng -lz
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

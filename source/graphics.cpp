@@ -20,17 +20,6 @@
 #include <3ds.h>
 #include <png.h>
 
-uint8_t *png_memory_reader_data;
-size_t png_memory_reader_index;
-size_t png_memory_reader_size;
-void png_read_from_memory(png_structp png_ptr, png_bytep out, png_size_t size) {
-	if(png_memory_reader_index + size >= png_memory_reader_size) {
-		png_error(png_ptr, "Read past the end of the PNG");
-		return;
-	}
-	memcpy(out, png_memory_reader_data + png_memory_reader_index, size);
-	png_memory_reader_index += size;
-}
 
 void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTownClient *client, void *userdata) {
 	puts("Callback called");
@@ -38,74 +27,22 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 	// ---
 
-	png_structp png_ptr;
-	png_infop info_ptr;
+	png_image image;
+	memset(&image, 0, sizeof(image));
+	image.version = PNG_IMAGE_VERSION;
 
-	int width, height;
-	png_byte color_type;
-	png_byte bit_depth;
-	int number_of_passes;
-	png_bytep * row_pointers;
+	png_image_begin_read_from_memory(&image, memory, size);
+	image.format = PNG_FORMAT_RGBA;
 
-	if(png_sig_cmp(memory, 0, 8)) {
-		puts("Not a PNG file");
-		return;
+	size_t input_data_length = PNG_IMAGE_SIZE(image);
+	uint8_t *pixel_data = (uint8_t*)calloc(1, input_data_length);
+
+	if(png_image_finish_read(&image, NULL, pixel_data, 0, NULL) == 0) {
+		puts("Image read failed");
 	}
 
-	png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if(!png_ptr) {
-		puts("png_create_read_struct failed");
-		return;
-	}
+	printf("%.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x\n", pixel_data[0], pixel_data[1], pixel_data[2], pixel_data[3], pixel_data[4], pixel_data[5], pixel_data[6], pixel_data[7]);
 
-	info_ptr = png_create_info_struct(png_ptr);
-	if(!info_ptr) {
-		png_destroy_read_struct(&png_ptr, NULL, NULL);
-		puts("png_create_info_struct failed");
-		return;
-	}
-
-	png_memory_reader_data  = memory;
-	png_memory_reader_index = 8;
-	png_memory_reader_size  = size;
-	png_set_read_fn(png_ptr, NULL, png_read_from_memory);
-	png_set_sig_bytes(png_ptr, 8);
-
-	// Read info
-	png_read_info(png_ptr, info_ptr);
-	width      = png_get_image_width(png_ptr, info_ptr);
-	height     = png_get_image_height(png_ptr, info_ptr);
-	color_type = png_get_color_type(png_ptr, info_ptr);
-	bit_depth  = png_get_bit_depth(png_ptr, info_ptr);
-	number_of_passes = png_set_interlace_handling(png_ptr);
-	printf("PNG info: %d %d, %d %d %d\n", width, height, color_type, bit_depth, number_of_passes);
-
-	// Apply transformations
-	if(color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png_ptr);
-	if(color_type == PNG_COLOR_TYPE_GRAY &&
-		bit_depth < 8) png_set_expand_gray_1_2_4_to_8(png_ptr);
-	if(png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
-		png_set_tRNS_to_alpha(png_ptr);
-	if(bit_depth == 16)
-		png_set_strip_16(png_ptr);
-	png_read_update_info(png_ptr, info_ptr);
-
-	// Read pixels
-	if(setjmp(png_jmpbuf(png_ptr))) {
-		puts("Error during read_image");
-		return;
-	}
-
-	row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
-	for(int y=0; y<height; y++)
-		row_pointers[y] = (png_byte*)malloc(png_get_rowbytes(png_ptr, info_ptr));
-	png_read_image(png_ptr, row_pointers);
-
-	puts("Read everything");
-
-	// Cleanup
-	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-	for(int y=0; y<height; y++)
-		free(row_pointers[y]);
+	free(pixel_data);
+	png_image_free(&image);
 }
