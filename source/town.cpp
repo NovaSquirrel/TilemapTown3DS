@@ -79,7 +79,7 @@ MapTileReference::MapTileReference(cJSON *json) {
 	if(cJSON_IsString(json)) {
 		this->tile = std::string(json->valuestring);
 	} else if(cJSON_IsObject(json)) {
-		MapTileInfo tile_info;
+		MapTileInfo tile_info = MapTileInfo();
 		if(map_tile_from_json(json, &tile_info)) {
 			this->tile = make_shared<MapTileInfo>(tile_info);
 		}

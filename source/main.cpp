@@ -85,34 +85,7 @@ int main(int argc, char* argv[]) {
 		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.5f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-		C2D_DrawRectangle(10, 10, 0, 60, 60, C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f));
-
-//		if(texture_loaded_yet) {
-//			C2D_DrawRectangle(20, 20, 0, 60, 60, C2D_Color32f(1.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 	1.0f, 0.0f, 1.0f));
-/*
-			C2D_Image image;
-
-			Tex3DS_SubTexture sub;
-			sub.width  = 512;
-			sub.height = 512;
-			sub.left   = 0;
-			sub.top    = 0;
-			sub.right  = 1;
-			sub.bottom = 1;
-*/
-
-/*
-			for(int i=0; i<10; i++) {
-//				Tex3DS_SubTexture sub = calc_subtexture(512, 512, 16, 16, i, i); //{16, 16, 0.0f, 1.0f, 1.0f, 0.0f};
-//				Tex3DS_SubTexture sub = {512, 512, 0.0f, 1.0f, 1.0f, 0.0f};
-
-				image.tex = &loaded_texture;
-				image.subtex = &sub;
-
-				C2D_DrawImageAt(image, 5+i*16, 5+i*16, 0, NULL, 1.0f, -1.0f);
-			}
-*/
-//		}
+		//C2D_DrawRectangle(10, 10, 0, 60, 60, C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f));
 
 		client.draw_map(0, 0);
 

@@ -130,6 +130,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
 
 			// Draw turf
+
 			if(turf) {
 				C2D_Image *image = turf->pic.get(this);
 				if(image) {
@@ -141,19 +142,17 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				C2D_DrawRectangle(x*16, y*16, 0, 16, 16, C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255));
 			}
 
-
 			// Draw objects
+
 			for(auto & element : this->town_map.cells[index].objs) {
 				MapTileInfo *obj = element.get(this);
 				if(!obj)
 					continue;
 				C2D_Image *image = obj->pic.get(this);
 				if(image) {
-					// Crash here
 					C2D_DrawImageAt(*image, x*16, y*16, 0, NULL, 1.0f, -1.0f);
 				}
 			}
-
 		}
 	}
 }
