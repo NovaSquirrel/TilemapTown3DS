@@ -17,10 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <memory>
 #include <vector>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <variant>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -40,6 +42,11 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
+#ifdef __3DS__
+#include <3ds.h>
+#include <citro2d.h>
+#endif
+
 class TilemapTownClient;
 
 struct http_file {
@@ -57,20 +64,49 @@ struct http_transfer {
 };
 
 // ------------------------------------
+struct MapTileInfo;
+
+struct MapTileReference {
+	std::variant<std::monostate, std::string, std::shared_ptr<MapTileInfo>> tile;
+
+	MapTileInfo* get(TilemapTownClient *client);
+
+	MapTileReference();
+	MapTileReference(struct cJSON *json);
+	MapTileReference(std::string str);
+	MapTileReference(std::string str, TilemapTownClient *client);
+	MapTileReference(MapTileInfo tile);
+	MapTileReference(std::shared_ptr<MapTileInfo> tile);
+};
+
+struct MapCell {
+	struct MapTileReference turf;
+	std::vector<struct MapTileReference> objs;
+
+	MapCell();
+	MapCell(struct MapTileReference turf);
+};
 
 class TownMap {
-	int width, height;
-
 public:
-	void set_values (int,int);
-	int area (void);
+	int width, height;
+	std::vector<MapCell> cells;
+
+	void init_map(int width, int height);
 };
 
 struct Pic {
-	std::string url;
-	int sheet;
+	std::string key; // URL or integer
 	int x;
 	int y;
+
+	bool ready_to_draw; // Map tile has the texture loaded in
+
+	#ifdef __3DS__
+	Tex3DS_SubTexture subtexture;
+	C2D_Image image;    // Texture and subtexture
+	C2D_Image *get(TilemapTownClient *client);
+	#endif
 };
 
 class Entity {
@@ -92,12 +128,23 @@ class Entity {
 	int direction_lr;
 };
 
-class MapTileInfo {
-	std::string key; // Key used to look up this MapTileInfo
-	std::string name;
-	Pic pic;
+enum MapTileType {
+	MAP_TILE_NONE,
+	MAP_TILE_SIGN,
+};
+
+struct MapTileInfo {
+	std::string key;  // Key used to look up this MapTileInfo
+	std::string name; // Name, for metadata
+	std::string message; // For signs
+
+	// Appearance
+	Pic pic;          // [sheet, x, y] format
+
+	// Game logic related
 	bool density;
 	bool obj;
+	enum MapTileType type;
 };
 
 // ------------------------------------
@@ -105,7 +152,7 @@ class MapTileInfo {
 class HttpFileCache {
 	std::unordered_map<std::string, struct http_file> cache;
 	CURLM *http;
-	std::unordered_set <std::string> requested_urls;
+	std::unordered_set<std::string> requested_urls;
 	bool http_in_progress;
 	size_t total_size;
 
@@ -114,7 +161,7 @@ public:
 	HttpFileCache();
 	~HttpFileCache();
 
-	void http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata);
+	void get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata);
 	void run_transfers();
 };
 
@@ -135,8 +182,17 @@ public:
 
 	// Game state
 	TownMap town_map;
-	std::unordered_map<std::string, MapTileInfo> tileset;
+	std::unordered_map<std::string, std::shared_ptr<MapTileInfo>> tileset;
 	std::unordered_map<std::string, Entity> who;
+	#ifdef __3DS__
+	std::unordered_map<std::string, C3D_Tex*> texture_for_url;
+	#endif
+
+	std::unordered_map<std::string, std::string> url_for_tile_sheet;
+	std::unordered_set<std::string> requested_tile_sheets;
+
+	bool map_received;
+	bool need_redraw;
 
 	// Player state
 	std::string your_id;
@@ -150,5 +206,7 @@ public:
 	int network_connect(std::string host, std::string path, std::string port);
 	void network_disconnect();
 	void network_update();
+
 	void log_message(std::string text, std::string style);
+	void draw_map(int camera_x, int camera_y);
 };

@@ -52,12 +52,12 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 
 CFLAGS	+=	$(INCLUDE) -D__3DS__
 
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++20
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= `$(PREFIX)pkg-config --libs libcurl` -lctru -lm -lwslay -lmbedtls -lmbedx509 -lmbedcrypto -lpng -lz
+LIBS	:= `$(PREFIX)pkg-config --libs libcurl` -lcitro2d -lcitro3d -lctru -lm -lwslay -lmbedtls -lmbedx509 -lmbedcrypto -lpng -lz
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

@@ -247,6 +247,8 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 
 	// Kick off the connection!
 	this->websocket_write("IDN");
+	this->websocket_write("CMD {\"text\": \"nick 3ds\"}");
+
 	this->connected = true;
 	return 1;
 
@@ -361,15 +363,14 @@ void HttpFileCache::run_transfers() {
 	}
 }
 
-void HttpFileCache::http_get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata) {
+void HttpFileCache::get(std::string url, void (*callback) (const char *url, uint8_t *data, size_t size, TilemapTownClient *client, void *userdata), void *userdata) {
 	// Don't request it if it's currently being requested
 	if(this->requested_urls.find(url) != this->requested_urls.end()) {
 		return;
 	}
 
 	// Try to find it in the cache
-	std::unordered_map<std::string, struct http_file>::iterator it;
-	it = this->cache.find(url);
+	auto it = this->cache.find(url);
 	if(it != this->cache.end()) {
 		// If it's already there, don't re-request it, just get the cached version
 		callback(url.c_str(), (*it).second.memory, (*it).second.size, this->client, userdata);
