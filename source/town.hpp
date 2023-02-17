@@ -110,10 +110,12 @@ struct Pic {
 };
 
 class Entity {
+public:
 	std::string name;
 	struct Pic pic;
 	int x;
 	int y;
+	bool in_user_list;
 
 	std::string vehicle_id;
 	std::unordered_set <std::string> passengers;
@@ -126,6 +128,8 @@ class Entity {
 	int direction;
 	int direction_4;
 	int direction_lr;
+
+	std::string apply_json(cJSON *json);
 };
 
 enum MapTileType {
@@ -193,6 +197,7 @@ public:
 
 	bool map_received;
 	bool need_redraw;
+	int animation_tick;
 
 	// Player state
 	std::string your_id;

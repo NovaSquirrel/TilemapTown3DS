@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "town.hpp"
-#include "cJSON.h"
 
 using namespace std;
 
@@ -73,19 +72,6 @@ MapTileReference::MapTileReference(MapTileInfo tile) {
 	this->tile = make_shared<MapTileInfo>(tile);
 }
 
-int map_tile_from_json(cJSON *json, MapTileInfo *out);
-
-MapTileReference::MapTileReference(cJSON *json) {
-	if(cJSON_IsString(json)) {
-		this->tile = std::string(json->valuestring);
-	} else if(cJSON_IsObject(json)) {
-		MapTileInfo tile_info = MapTileInfo();
-		if(map_tile_from_json(json, &tile_info)) {
-			this->tile = make_shared<MapTileInfo>(tile_info);
-		}
-	}
-}
-
 MapTileReference::MapTileReference() {
 	this->tile = std::monostate();
 }
@@ -97,4 +83,4 @@ MapCell::MapCell() {
 MapCell::MapCell(struct MapTileReference turf) {
 	this->turf = turf;
 }
-  
+

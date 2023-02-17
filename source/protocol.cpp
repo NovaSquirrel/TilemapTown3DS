@@ -113,6 +113,52 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	return 1;
 }
 
+std::string Entity::apply_json(cJSON *json) {
+	cJSON *i_name         = get_json_item(json, "name");
+	cJSON *i_pic          = get_json_item(json, "pic");
+	cJSON *i_x            = get_json_item(json, "x");
+	cJSON *i_y            = get_json_item(json, "y");
+	cJSON *i_dir          = get_json_item(json, "dir");
+	cJSON *i_id           = get_json_item(json, "id");
+	cJSON *i_passengers   = get_json_item(json, "passengers");
+	cJSON *i_vehicle      = get_json_item(json, "vehicle");
+	cJSON *i_is_following = get_json_item(json, "is_following");
+	cJSON *i_type         = get_json_item(json, "type");
+	cJSON *i_in_user_list = get_json_item(json, "in_user_list");
+	cJSON *i_typing       = get_json_item(json, "typing");
+
+	if(cJSON_IsArray(i_pic)) pic_from_json(i_pic, &this->pic);
+	if(cJSON_IsString(i_name)) this->name = json_as_string(i_name);
+	if(cJSON_IsNumber(i_x))    this->x = i_x->valueint;
+	if(cJSON_IsNumber(i_y))    this->y = i_y->valueint;
+	if(cJSON_IsNumber(i_dir))  this->direction = i_dir->valueint;
+	if(cJSON_IsArray(i_passengers)) {
+		this->passengers.clear();
+		cJSON *passenger;
+		cJSON_ArrayForEach(passenger, i_passengers) {
+			this->passengers.insert(json_as_string(passenger));
+		}
+	}
+	if(cJSON_IsString(i_vehicle)) this->vehicle_id = json_as_string(i_vehicle);
+	if(i_is_following) this->is_following = cJSON_IsTrue(i_is_following);
+	if(i_type);
+	if(i_in_user_list) this->in_user_list = cJSON_IsTrue(i_in_user_list);
+	if(i_typing)       this->is_typing = cJSON_IsTrue(i_typing);
+	if(i_id)           return json_as_string(i_id);
+	return "";
+}
+
+MapTileReference::MapTileReference(cJSON *json) {
+	if(cJSON_IsString(json)) {
+		this->tile = std::string(json->valuestring);
+	} else if(cJSON_IsObject(json)) {
+		MapTileInfo tile_info = MapTileInfo();
+		if(map_tile_from_json(json, &tile_info)) {
+			this->tile = make_shared<MapTileInfo>(tile_info);
+		}
+	}
+}
+
 void TilemapTownClient::websocket_message(const char *text, size_t length) {
 	if(length < 3)
 		return;
@@ -129,11 +175,34 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 
 		case protocol_command_as_int('M', 'O', 'V'):
 		{
-// <-- MOV {"from": [x1,y1], "to": [x2,y2], "dir": 0, "rc": 0}
 			cJSON *i_to   = get_json_item(json, "to");
 			cJSON *i_from = get_json_item(json, "from");
 			cJSON *i_dir  = get_json_item(json, "dir");
 			cJSON *i_id   = get_json_item(json, "id");
+			if(!cJSON_IsString(i_id) && !cJSON_IsNumber(i_id))
+				break;
+			auto it = this->who.find(json_as_string(i_id));
+			if(it != this->who.end()) {
+				int to_x, to_y;
+				Entity *entity = &(*it).second;
+
+				if(unpack_json_int_array(i_to, 2, &to_x, &to_y)) {
+					entity->x = to_x;
+					entity->y = to_y;
+					if(entity->vehicle_id.empty() || entity->is_following) {
+						entity->walk_timer = 30+1; // 30*(16.6666ms/1000) = 0.5
+					}
+				}
+
+				if(cJSON_IsNumber(i_dir)) {
+					entity->direction = i_dir->valueint;
+
+					if((i_dir->valueint & 1) == 0) // Four directions only
+						entity->direction_4 = i_dir->valueint;
+					if(i_dir->valueint == 0 || i_dir->valueint == 4) // Left and right only
+						entity->direction_lr = i_dir->valueint;
+				}
+			}
 			break;
 		}
 
@@ -164,7 +233,6 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		}
 		case protocol_command_as_int('M', 'A', 'P'):
 		{
-// <-- MAP {"pos":[x1, y1, x2, y2], "default": default_turf, "turf": [turfs], "obj": [objs]}
 			this->map_received = true;
 
 			cJSON *i_pos     = get_json_item(json, "pos");
@@ -248,31 +316,64 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 //<-- WHO {"list": {"[id]": {"name": name, "pic": [s, x, y], "x": x, "y": y, "dir": dir, "id": id}, "you":id}
 //<-- WHO {"add": {"name": name, "pic": [s, x, y], "x": x, "y": y, "dir", dir, "id": id}}
 //<-- WHO {"update": {"id": id, other fields}}
-//<-- WHO {"remove": id}
-//<-- WHO {"new_id": {"id": old_id, "new_id", id}}
-			cJSON *i_list = get_json_item(json, "list");
-			if(i_list) {
+			cJSON *i_you = get_json_item(json, "you");
+			if(i_you) {
+				this->your_id = json_as_string(i_you);
+			}
 
+			cJSON *i_list = get_json_item(json, "list");
+			if(cJSON_IsObject(i_list)) {
+				this->who.clear();
+
+				cJSON *i_user;
+				cJSON_ArrayForEach(i_user, i_list) {
+					if(!cJSON_IsObject(i_user))
+						break;
+					Entity entity = Entity();
+					std::string id = entity.apply_json(i_user);
+					if(!id.empty())
+						this->who[id] = entity;
+				}
 			}
 
 			cJSON *i_add = get_json_item(json, "add");
-			if(i_add) {
-
-			}
-
-			cJSON *i_remove = get_json_item(json, "remove");
-			if(i_remove) {
-
+			if(cJSON_IsObject(i_add)) {
+				Entity entity = Entity();
+				std::string id = entity.apply_json(i_add);
+				if(!id.empty())
+					this->who[id] = entity;
 			}
 
 			cJSON *i_update = get_json_item(json, "update");
-			if(i_update) {
+			if(cJSON_IsObject(i_update)) {
+				cJSON *i_id = get_json_item(i_add, "id");
+				if(!i_id) break;
 
+				auto it = this->who.find(json_as_string(i_id));
+				if(it != this->who.end()) {
+					(*it).second.apply_json(i_update);
+				}
+			}
+
+			cJSON *i_remove = get_json_item(json, "remove");
+			if(cJSON_IsString(i_remove) || cJSON_IsNumber(i_remove)) {
+				this->who.erase(json_as_string(i_remove));
 			}
 
 			cJSON *i_new_id = get_json_item(json, "new_id");
-			if(i_new_id) {
-
+			if(cJSON_IsObject(i_new_id)) {
+				cJSON *i_id  = get_json_item(i_new_id, "id");
+				cJSON *i_id2 = get_json_item(i_new_id, "new_id");
+				if(!i_id || !i_id2)
+					break;
+				std::string str_id     = json_as_string(i_id);
+				std::string str_new_id = json_as_string(i_id2);
+			
+				auto it = this->who.find(str_id);
+				if(it != this->who.end()) {
+					this->who[str_new_id] = (*it).second;
+					this->who.erase(str_id);
+				}
 			}
 			break;
 		}
@@ -313,7 +414,6 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 
 		case protocol_command_as_int('R', 'S', 'C'):
 		{
-//<-- RSC {"images": {"id": "url", ...}, "tilesets": {"id": {}, ...}}
 			cJSON *i_images   = get_json_item(json, "images");
 			if(i_images) {
 				cJSON *element;

@@ -443,9 +443,9 @@ void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_
 }
 
 void TilemapTownClient::websocket_write(std::string text) {
-  struct wslay_event_msg event_message;
-  event_message.opcode = WSLAY_TEXT_FRAME;
-  event_message.msg = (const uint8_t*)text.c_str();
-  event_message.msg_length = text.size();
-  wslay_event_queue_msg(this->websocket, &event_message);
+	struct wslay_event_msg event_message;
+	event_message.opcode = WSLAY_TEXT_FRAME;
+	event_message.msg = (const uint8_t*)text.c_str();
+	event_message.msg_length = text.size();
+	wslay_event_queue_msg(this->websocket, &event_message);
 }
