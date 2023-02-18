@@ -67,27 +67,28 @@ int main(int argc, char* argv[]) {
 		hidScanInput();
 
 		client.network_update();
-
-		u32 kDown = hidKeysDown();
-		if (kDown & KEY_B) {
+		
+		u32 kHeld       = hidKeysHeld();
+		u32 kDown       = hidKeysDown();
+		u32 kDownRepeat = hidKeysDownRepeat();
+		if(kDown & KEY_B) {
 			printf("How many tiles: %d\n", client.tileset.size());
 		}
-		if (kDown & KEY_A) {
-			puts("Requesting");
-			client.http.get("https://novasquirrel.com/town/img/potluck.png", http_png_callback, NULL);
-		}
 
-		if (kDown & KEY_START)
+		if(kDownRepeat & KEY_LEFT)  client.move_player(-1,  0);
+		if(kDownRepeat & KEY_DOWN)  client.move_player( 0,  1);
+		if(kDownRepeat & KEY_UP)    client.move_player( 0, -1);
+		if(kDownRepeat & KEY_RIGHT) client.move_player( 1,  0);
+
+		if(kDown & KEY_START)
 			break;
 
 		// Render the scene
 		C3D_FrameBegin(C3D_FRAME_SYNCDRAW); // vsync
-		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.5f, 0.0f, 1.0f));
+		C2D_TargetClear(top, C2D_Color32(0, 0, 0, 255));
 		C2D_SceneBegin(top);
-
-		//C2D_DrawRectangle(10, 10, 0, 60, 60, C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f), C2D_Color32f(0.0f, 1.0f, 0.0f, 1.0f));
-
-		client.draw_map(0, 0);
+		client.update_camera(0, 0);
+		client.draw_map(round(client.camera_x), round(client.camera_y));
 
 		C3D_FrameEnd(0);
 	}

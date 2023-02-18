@@ -159,9 +159,19 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 		return;
 	this->animation_tick = (this->animation_tick+1) % 60000;
 
-	for(int y=0; y<15; y++) {
-		for(int x=0; x<25; x++) {
-			int index = y * this->town_map.width + x;
+	int camera_offset_x = camera_x % 16;
+	int camera_offset_y = camera_y % 16;
+	int camera_tile_x = camera_x / 16;
+	int camera_tile_y = camera_y / 16;
+
+	for(int y=0; y<=VIEW_HEIGHT_TILES; y++) {
+		for(int x=0; x<=VIEW_WIDTH_TILES; x++) {
+			int real_x = camera_tile_x + x;
+			int real_y = camera_tile_y + y;
+			if(real_x < 0 || real_x >= this->town_map.width || real_y < 0 || real_y >= this->town_map.height)
+				continue;
+
+			int index = real_y * this->town_map.width + real_x;
 			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
 
 			// Draw turf
@@ -169,12 +179,8 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			if(turf) {
 				C2D_Image *image = turf->pic.get(this);
 				if(image) {
-					C2D_DrawImageAt(*image, x*16, y*16, 0, NULL, 1.0f, -1.0f);
-				} else {
-					C2D_DrawRectangle(x*16, y*16, 0, 16, 16, C2D_Color32(255, 0, 0, 255), C2D_Color32(255, 0, 0, 255), C2D_Color32(255, 0, 0, 255), C2D_Color32(255, 0, 0, 255));
+					C2D_DrawImageAt(*image, x*16-camera_offset_x, y*16-camera_offset_y, 0, NULL, 1.0f, -1.0f);
 				}
-			} else {
-				C2D_DrawRectangle(x*16, y*16, 0, 16, 16, C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255), C2D_Color32(255, 255, 0, 255));
 			}
 
 			// Draw objects
@@ -185,7 +191,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 					continue;
 				C2D_Image *image = obj->pic.get(this);
 				if(image) {
-					C2D_DrawImageAt(*image, x*16, y*16, 0, NULL, 1.0f, -1.0f);
+					C2D_DrawImageAt(*image, x*16-camera_offset_x, y*16-camera_offset_y, 0, NULL, 1.0f, -1.0f);
 				}
 			}
 		}

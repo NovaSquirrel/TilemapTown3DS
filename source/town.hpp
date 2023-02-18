@@ -42,6 +42,9 @@
 #include "mbedtls/error.h"
 #include "mbedtls/timing.h"
 
+#define VIEW_WIDTH_TILES 25
+#define VIEW_HEIGHT_TILES 15
+
 #ifdef __3DS__
 #include <3ds.h>
 #include <citro2d.h>
@@ -130,6 +133,7 @@ public:
 	int direction_lr;
 
 	std::string apply_json(cJSON *json);
+	void update_direction(int direction);
 };
 
 enum MapTileType {
@@ -201,17 +205,22 @@ public:
 
 	// Player state
 	std::string your_id;
-	int camera_x;
-	int camera_y;
+	float camera_x;
+	float camera_y;
 
 	bool fly;
 
 	void websocket_write(std::string text);
+	void websocket_write(std::string command, cJSON *json);
 	void websocket_message(const char *text, size_t length);
 	int network_connect(std::string host, std::string path, std::string port);
 	void network_disconnect();
 	void network_update();
 
 	void log_message(std::string text, std::string style);
+	void update_camera(float offset_x, float offset_y);
 	void draw_map(int camera_x, int camera_y);
+	Entity *your_entity();
+	void turn_player(int direction);
+	void move_player(int offset_x, int offset_y);
 };

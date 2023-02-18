@@ -181,7 +181,10 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			cJSON *i_id   = get_json_item(json, "id");
 			if(!cJSON_IsString(i_id) && !cJSON_IsNumber(i_id))
 				break;
-			auto it = this->who.find(json_as_string(i_id));
+			std::string str_id = json_as_string(i_id);
+			if(str_id == this->your_id && i_from)
+				break;
+			auto it = this->who.find(str_id);
 			if(it != this->who.end()) {
 				int to_x, to_y;
 				Entity *entity = &(*it).second;
@@ -195,12 +198,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 				}
 
 				if(cJSON_IsNumber(i_dir)) {
-					entity->direction = i_dir->valueint;
-
-					if((i_dir->valueint & 1) == 0) // Four directions only
-						entity->direction_4 = i_dir->valueint;
-					if(i_dir->valueint == 0 || i_dir->valueint == 4) // Left and right only
-						entity->direction_lr = i_dir->valueint;
+					entity->update_direction(i_dir->valueint);
 				}
 			}
 			break;
@@ -522,4 +520,16 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 
 	if(json)
 		cJSON_Delete(json);
+}
+
+void TilemapTownClient::websocket_write(std::string command, cJSON *json) {
+	if(json == NULL) {
+		this->websocket_write(command);
+		return;
+	}
+	char *as_string = cJSON_PrintUnformatted(json);
+	if(!as_string)
+		return;
+	this->websocket_write(command + " " + std::string(as_string));
+	free(as_string);
 }
