@@ -171,7 +171,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 	if(length > 4)
 		json = cJSON_ParseWithLength(text+4, length-4);
 
-	//printf("Received %c%c%c\n", text[0], text[1], text[2]);
+	// printf("Received %c%c%c\n", text[0], text[1], text[2]);
 
 	switch(protocol_command_as_int(text[0], text[1], text[2])) {
 		case protocol_command_as_int('P', 'I', 'N'):
@@ -457,7 +457,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			if(i_id) {
 				std::string id = json_as_string(i_id);
 				this->url_for_tile_sheet[id] = i_url;
-				client->requested_tile_sheets.erase(id);
+				this->requested_tile_sheets.erase(id);
 			}
 			break;
 		}

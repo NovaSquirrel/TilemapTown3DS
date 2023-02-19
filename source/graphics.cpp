@@ -132,10 +132,8 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 		if(it2 != client->url_for_tile_sheet.end()) {
 			real_url = &(*it2).second;
 		} else {
-			if(client->requested_tile_sheets.find(this->key) != client->requested_tile_sheets.end()) {
-				client->request_image_asset(this->key);
-				return nullptr;
-			}
+			client->request_image_asset(this->key);
+			return nullptr;
 		}
 	}
 
