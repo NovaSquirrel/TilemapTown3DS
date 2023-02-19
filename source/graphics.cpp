@@ -56,7 +56,7 @@ static u8 swizzle_lut[64] = {
 };
 
 void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTownClient *client, void *userdata) {
-	printf("Url %s Size %d\n", url, size);
+	//printf("Url %s Size %d\n", url, size);
 
 	// ---
 	// Based on https://github.com/asiekierka/atari800-3ds/blob/ee116ce923ccaafd76e2c44d51c71fe969f07ea2/src/3ds/grapefruit.c
@@ -113,7 +113,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 	client->texture_for_url[std::string(url)] = tex;
 	client->need_redraw = true;
-	puts("Finished decoding texture");
+	//puts("Finished decoding texture");
 }
 
 bool string_is_http_url(std::string &url) {

@@ -21,6 +21,7 @@
 int network_init();
 void network_finish();
 void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTownClient *client, void *userdata);
+void show_keyboard(TilemapTownClient *client);
 
 extern int texture_loaded_yet;
 extern C3D_Tex loaded_texture;
@@ -73,6 +74,9 @@ int main(int argc, char* argv[]) {
 		u32 kDownRepeat = hidKeysDownRepeat();
 		if(kDown & KEY_B) {
 			printf("How many tiles: %d\n", client.tileset.size());
+		}
+		if(kDown & KEY_X) {
+			show_keyboard(&client);
 		}
 
 		if(kDownRepeat & KEY_LEFT)  client.move_player(-1,  0);
