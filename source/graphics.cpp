@@ -133,7 +133,7 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 			real_url = &(*it2).second;
 		} else {
 			if(client->requested_tile_sheets.find(this->key) != client->requested_tile_sheets.end()) {
-				client->requested_tile_sheets.insert(this->key);
+				client->request_image_asset(this->key);
 				return nullptr;
 			}
 		}

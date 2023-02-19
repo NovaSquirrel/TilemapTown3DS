@@ -217,6 +217,7 @@ public:
 	void network_disconnect();
 	void network_update();
 
+	void request_image_asset(std::string key);
 	void log_message(std::string text, std::string style);
 	void update_camera(float offset_x, float offset_y);
 	void draw_map(int camera_x, int camera_y);

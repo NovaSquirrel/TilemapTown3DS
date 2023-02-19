@@ -455,7 +455,9 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			cJSON *i_id  = get_json_item(json, "id");
 			const char *i_url = get_json_string(json, "url");
 			if(i_id) {
-				this->url_for_tile_sheet[json_as_string(i_id)] = i_url;
+				std::string id = json_as_string(i_id);
+				this->url_for_tile_sheet[id] = i_url;
+				client->requested_tile_sheets.erase(id);
 			}
 			break;
 		}
@@ -546,4 +548,16 @@ void TilemapTownClient::websocket_write(std::string command, cJSON *json) {
 		return;
 	this->websocket_write(command + " " + std::string(as_string));
 	free(as_string);
+}
+
+void TilemapTownClient::request_image_asset(std::string key) {
+	if(this->requested_tile_sheets.find(key) != this->requested_tile_sheets.end()) {
+		return;
+	}
+	this->requested_tile_sheets.insert(key);
+
+	cJSON *json = cJSON_CreateObject();
+	cJSON_AddStringToObject(json, "id", key.c_str());
+	this->websocket_write("IMG", json);
+	cJSON_Delete(json);
 }
