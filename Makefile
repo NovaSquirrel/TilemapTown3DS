@@ -41,6 +41,10 @@ GFXBUILD	:=	$(BUILD)
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(ROMFS)/gfx
 
+APP_TITLE = Tilemap Town
+APP_DESCRIPTION = 2D building game
+APP_AUTHOR = NovaSquirrel
+
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------

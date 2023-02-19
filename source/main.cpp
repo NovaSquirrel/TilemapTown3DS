@@ -56,8 +56,12 @@ int main(int argc, char* argv[]) {
 	}
 
 	puts("Attempting to connect to the server...");
-	client.network_connect("novasquirrel.com", "/townws/", "443");
-	puts("Connected!");
+	if(!client.network_connect("novasquirrel.com", "/townws/", "443")) {
+		puts("Couldn't connect to the server");
+		wait_for_key();
+		goto cleanup;
+	}
+	puts("Connected! Press X to chat.");
 
 	// --------------------------------------------------------------
 
