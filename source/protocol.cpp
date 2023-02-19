@@ -95,6 +95,7 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	cJSON *i_obj     = get_json_item(json, "obj");
 	cJSON *i_density = get_json_item(json, "density");
 	cJSON *i_type    = get_json_item(json, "type");
+	cJSON *i_message = get_json_item(json, "message");
 
 	if(!pic_from_json(i_pic, &out->pic)) {
 		return 0;
@@ -109,6 +110,10 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	const char *s_type = cJSON_GetStringValue(i_type);
 	if(s_type)
 		out->type    = !strcmp(s_type, "sign") ? MAP_TILE_SIGN : MAP_TILE_NONE;
+
+	const char *s_message = cJSON_GetStringValue(i_message);
+	if(s_message)
+		out->message = std::string(s_message);
 
 	return 1;
 }

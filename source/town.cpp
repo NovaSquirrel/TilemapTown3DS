@@ -173,6 +173,9 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 		MapTileInfo *obj = obj_reference.get(this);
 		if(!obj)
 			continue;
+		if(obj->type == MAP_TILE_SIGN) {
+			printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign") ? "The sign" : obj->name.c_str(), obj->message.c_str());
+		}
 		if(obj->density) {
 			// Go back
 			you->x = player_x;
