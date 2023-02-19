@@ -498,10 +498,16 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		case protocol_command_as_int('P', 'R', 'I'):
 		{
 // <-- PRI {"text": "[text"], "name": display name, "username": username, "receive": true/false}
-			cJSON *i_text     = get_json_item(json, "text");
-			cJSON *i_name     = get_json_item(json, "name");
+			const char *i_text = get_json_string(json, "text");
+			const char *i_name = get_json_string(json, "name");
 			cJSON *i_username = get_json_item(json, "username");
 			cJSON *i_receive  = get_json_item(json, "receive");
+
+			if(!i_text || !i_name || !i_username || !i_receive)
+				break;
+			std::string username = json_as_string(i_username);
+			bool b_receive = cJSON_IsTrue(i_receive);
+			printf("%s[%s(%s)]: %s\n", b_receive?"<--":"-->", i_name, username.c_str(), i_text);
 			break;
 		}
 
