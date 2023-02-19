@@ -507,6 +507,8 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		{
 // <-- ERR {"text": "[text]"}
 			const char *i_text = get_json_string(json, "text");
+			if(i_text)
+				printf("\x1b[31m%s\x1b[0m\n", i_text);
 			break;
 		}
 
