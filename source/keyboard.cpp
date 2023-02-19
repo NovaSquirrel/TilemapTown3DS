@@ -72,15 +72,19 @@ void show_keyboard(TilemapTownClient *client) {
 	// Send the message
 
 	if(button == SWKBD_BUTTON_CONFIRM && text_buffer[0]) {
-		cJSON *json = cJSON_CreateObject();
-		if(text_buffer[0] == '/' && !(text_buffer[1] == 'm' && text_buffer[2] == 'e' && text_buffer[3] == ' ')) {
-			cJSON_AddStringToObject(json, "text", text_buffer+1);
-			client->websocket_write("CMD", json);
+		if(!strcmp(text_buffer, "/clear")) {
+			consoleClear();
 		} else {
-			cJSON_AddStringToObject(json, "text", text_buffer);
-			client->websocket_write("MSG", json);
+			cJSON *json = cJSON_CreateObject();
+			if(text_buffer[0] == '/' && !(text_buffer[1] == 'm' && text_buffer[2] == 'e' && text_buffer[3] == ' ')) {
+				cJSON_AddStringToObject(json, "text", text_buffer+1);
+				client->websocket_write("CMD", json);
+			} else {
+				cJSON_AddStringToObject(json, "text", text_buffer);
+				client->websocket_write("MSG", json);
+			}
+			cJSON_Delete(json);
 		}
-		cJSON_Delete(json);
 	}
 
 }
