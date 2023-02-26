@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "town.hpp"
+#include <algorithm>
 #include <png.h>
 
 Tex3DS_SubTexture calc_subtexture(int width, int height, int tile_width, int tile_height, int tile_x, int tile_y) {
@@ -152,6 +153,10 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 	}
 }
 
+bool sort_entity_by_y_pos(Entity a, Entity b) {
+    return (a.y < b.y);
+}
+
 void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 	if(!this->map_received)
 		return;
@@ -197,7 +202,13 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 	// Draw entities
 
+	std::vector<Entity> sorted_entities;
 	for(auto& [key, entity] : this->who) {
+		sorted_entities.push_back(entity);
+	}
+	std::sort(sorted_entities.begin(), sorted_entities.end(), sort_entity_by_y_pos);
+
+	for(auto& entity : sorted_entities) {
 		if(entity.walk_timer)
 			entity.walk_timer--;
 
@@ -226,6 +237,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				switch(tileset_width / 32) { // Frames per direction
 					case 2: frame_x = (is_walking * 1); break;
 					case 4: frame_x = (is_walking * 2) + (frame_count_from_animation_tick & 1); break;
+					case 6: frame_x = (is_walking * 3) + (frame_count_from_animation_tick % 3); break;
 					case 8: frame_x = (is_walking * 4) + (frame_count_from_animation_tick & 3); break;
 				}
 
