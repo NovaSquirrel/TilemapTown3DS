@@ -98,6 +98,12 @@ public:
 	void init_map(int width, int height);
 };
 
+struct LoadedTextureInfo {
+	int original_width;  // Width of the source image, rather than the texture
+	int original_height;
+	C3D_Tex* texture;
+};
+
 struct Pic {
 	std::string key; // URL or integer
 	int x;
@@ -107,7 +113,9 @@ struct Pic {
 
 	#ifdef __3DS__
 	Tex3DS_SubTexture subtexture;
-	C2D_Image image;    // Texture and subtexture
+	C2D_Image image;               // Texture and subtexture
+	LoadedTextureInfo *extra_info; // Can use this to get the original size
+
 	C2D_Image *get(TilemapTownClient *client);
 	#endif
 };
@@ -193,7 +201,7 @@ public:
 	std::unordered_map<std::string, std::shared_ptr<MapTileInfo>> tileset;
 	std::unordered_map<std::string, Entity> who;
 	#ifdef __3DS__
-	std::unordered_map<std::string, C3D_Tex*> texture_for_url;
+	std::unordered_map<std::string, LoadedTextureInfo> texture_for_url;
 	#endif
 
 	std::unordered_map<std::string, std::string> url_for_tile_sheet;

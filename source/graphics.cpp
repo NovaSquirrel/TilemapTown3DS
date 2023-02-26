@@ -112,7 +112,12 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	linearFree(linear_pixels);
 	linearFree(swizzled_pixels);
 
-	client->texture_for_url[std::string(url)] = tex;
+	LoadedTextureInfo loaded_texture_info;
+	loaded_texture_info.original_width  = image.width;
+	loaded_texture_info.original_height = image.height;
+	loaded_texture_info.texture = tex;
+
+	client->texture_for_url[std::string(url)] = loaded_texture_info;
 	client->need_redraw = true;
 	//puts("Finished decoding texture");
 }
@@ -142,8 +147,9 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 	auto it = client->texture_for_url.find(*real_url);
 	if(it != client->texture_for_url.end()) {
 		this->ready_to_draw = true;
-		C3D_Tex *tex = (*it).second;
+		C3D_Tex *tex = (*it).second.texture;
 
+		this->extra_info = &(*it).second; // Save this so we can get the original size later
 		this->subtexture = calc_subtexture(tex->width, tex->height, 16, 16, this->x, this->y);
 		this->image = {tex, &this->subtexture};
 		return &this->image;
@@ -153,8 +159,8 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 	}
 }
 
-bool sort_entity_by_y_pos(Entity a, Entity b) {
-    return (a.y < b.y);
+bool sort_entity_by_y_pos(Entity *a, Entity *b) {
+    return (a->y < b->y);
 }
 
 void TilemapTownClient::draw_map(int camera_x, int camera_y) {
@@ -202,20 +208,19 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 	// Draw entities
 
-	std::vector<Entity> sorted_entities;
+	std::vector<Entity*> sorted_entities;
 	for(auto& [key, entity] : this->who) {
-		sorted_entities.push_back(entity);
+		sorted_entities.push_back(&entity);
 	}
 	std::sort(sorted_entities.begin(), sorted_entities.end(), sort_entity_by_y_pos);
 
 	for(auto& entity : sorted_entities) {
-		if(entity.walk_timer)
-			entity.walk_timer--;
-
-		const C2D_Image *image = entity.pic.get(this);
+		if(entity->walk_timer)
+			entity->walk_timer--;
+		const C2D_Image *image = entity->pic.get(this);
 		if(image) {
-			int tileset_width  = image->tex->width;
-			int tileset_height = image->tex->height;
+			int tileset_width  = entity->pic.extra_info->original_width;
+			int tileset_height = entity->pic.extra_info->original_height;
 			bool player_is_16x16 = false;
 
 			if(tileset_width == 16 && tileset_height == 16) {
@@ -223,16 +228,16 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 16, 16, 0, 0);
 				C2D_Image new_image = {image->tex, &subtexture};
-				C2D_DrawImageAt(new_image, (entity.x*16)-camera_x, (entity.y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
-			} else if(string_is_http_url(entity.pic.key)) {
+				C2D_DrawImageAt(new_image, (entity->x*16)-camera_x, (entity->y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
+			} else if(string_is_http_url(entity->pic.key)) {
 				int frame_x = 0, frame_y = 0;
 				int frame_count_from_animation_tick = this->animation_tick / 6;
-				bool is_walking = entity.walk_timer != 0;
+				bool is_walking = entity->walk_timer != 0;
 
 				switch(tileset_height / 32) { // Directions
-					case 2: frame_y = entity.direction_lr / 4; break;
-					case 4: frame_y = entity.direction_4 / 2; break;
-					case 8: frame_y = entity.direction; break;
+					case 2: frame_y = entity->direction_lr / 4; break;
+					case 4: frame_y = entity->direction_4 / 2; break;
+					case 8: frame_y = entity->direction; break;
 				}
 				switch(tileset_width / 32) { // Frames per direction
 					case 2: frame_x = (is_walking * 1); break;
@@ -243,9 +248,9 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 32, 32, frame_x, frame_y);
 				C2D_Image new_image = {image->tex, &subtexture};
-				C2D_DrawImageAt(new_image, (entity.x*16-8)-camera_x, (entity.y*16-16)-camera_y, 0, NULL, 1.0f, -1.0f);
+				C2D_DrawImageAt(new_image, (entity->x*16-8)-camera_x, (entity->y*16-16)-camera_y, 0, NULL, 1.0f, -1.0f);
 			} else {
-				C2D_DrawImageAt(*image, (entity.x*16)-camera_x, (entity.y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
+				C2D_DrawImageAt(*image, (entity->x*16)-camera_x, (entity->y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
 			}
 
 		}
