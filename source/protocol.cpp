@@ -371,7 +371,11 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 					break;
 				std::string str_id     = json_as_string(i_id);
 				std::string str_new_id = json_as_string(i_id2);
-			
+
+				if(str_id == this->your_id) {
+					this->your_id = str_new_id;
+				}
+
 				auto it = this->who.find(str_id);
 				if(it != this->who.end()) {
 					this->who[str_new_id] = (*it).second;
