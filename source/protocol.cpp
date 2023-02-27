@@ -295,30 +295,146 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		}
 		case protocol_command_as_int('B', 'L', 'K'):
 		{
-//<-- BLK {"turf": [[x, y, type, w, h], ...], "obj": [[x, y, [type], w, h], ...], "username": username}
-//<-- BLK {"copy": [{"turf": true/false, "obj": true/false, "src":[x,y,w,h], "dst":[x,y]}, ...]], "username": username}
 			cJSON *i_copy = get_json_item(json, "copy");
 			if(i_copy) {
+				cJSON *item;
+				cJSON_ArrayForEach(item, i_copy) {
+					if(!cJSON_IsObject(item))
+						continue;
+					cJSON *i_copy_turf = get_json_item(item, "turf");
+					cJSON *i_copy_obj  = get_json_item(item, "obj");
+					cJSON *i_copy_src  = get_json_item(item, "src");
+					cJSON *i_copy_dst  = get_json_item(item, "dst");
+					if(!i_copy_turf || !i_copy_obj || !i_copy_src || !i_copy_dst)
+						continue;
+					bool b_copy_turf = cJSON_IsTrue(i_copy_turf);
+					bool b_copy_obj  = cJSON_IsTrue(i_copy_obj);
 
+					int copy_from_x, copy_from_y, copy_from_w, copy_from_h, copy_to_x, copy_to_y;
+					if(!unpack_json_int_array(i_copy_src, 4, &copy_from_x, &copy_from_y, &copy_from_w, &copy_from_h)) {
+						if(!unpack_json_int_array(i_copy_src, 2, &copy_from_x, &copy_from_y)) {
+							break;
+						}
+						copy_from_w = 1;
+						copy_from_h = 1;
+					}
+					if(!unpack_json_int_array(i_copy_dst, 2, &copy_to_x, &copy_to_y))
+						break;
+					std::vector<MapCell> copy_buffer;
+
+					// Make a copy of the area
+					for(int rect_y = 0; rect_y < copy_from_h; rect_y++) {
+						for(int rect_x = 0; rect_x < copy_from_w; rect_x++) {
+							int map_x = copy_from_x + rect_x;
+							int map_y = copy_from_y + rect_y;
+							if(map_x < 0 || map_y < 0 || map_x >= this->town_map.width || map_y >= this->town_map.height)
+								continue;
+							int map_index = map_y * this->town_map.width + map_x;
+							copy_buffer.push_back(this->town_map.cells[map_index]);
+						}
+					}
+
+					if(copy_buffer.size() != (size_t)(copy_from_w * copy_from_h))
+						break;
+
+					// Copy the tiles into the place
+					for(int rect_y = 0; rect_y < copy_from_h; rect_y++) {
+						for(int rect_x = 0; rect_x < copy_from_w; rect_x++) {
+							int map_x = copy_to_x + rect_x;
+							int map_y = copy_to_y + rect_y;
+							if(map_x < 0 || map_y < 0 || map_x >= this->town_map.width || map_y >= this->town_map.height)
+								continue;
+
+							int map_index = map_y * this->town_map.width + map_x;
+							int rect_index = rect_y * copy_from_w + rect_x;
+
+							MapCell *cell = &this->town_map.cells[map_index];
+							if(b_copy_turf)
+								cell->turf = copy_buffer[rect_index].turf;
+							if(b_copy_obj)
+								cell->objs = copy_buffer[rect_index].objs;
+						}
+					}
+
+				}
 			}
 
 			cJSON *i_turf = get_json_item(json, "turf");
 			if(i_turf) {
+				cJSON *item;
+				cJSON_ArrayForEach(item, i_turf) {
+					if(!cJSON_IsArray(item))
+						continue;
+					int len = cJSON_GetArraySize(item);
+					if(len != 3 && len != 5)
+						continue;
+					cJSON *i_x = cJSON_GetArrayItem(item, 0);
+					cJSON *i_y = cJSON_GetArrayItem(item, 1);
+					cJSON *i_t = cJSON_GetArrayItem(item, 2);
+					cJSON *i_w = (len == 5)?cJSON_GetArrayItem(item, 3) : nullptr;
+					cJSON *i_h = (len == 5)?cJSON_GetArrayItem(item, 4) : nullptr;
+					int width = i_w ? i_w->valueint : 1;
+					int height = i_h ? i_h->valueint : 1;
+					if(!cJSON_IsNumber(i_x) || !cJSON_IsNumber(i_y) || (i_w&&!cJSON_IsNumber(i_w)) || (i_h&&!cJSON_IsNumber(i_h)) )
+						continue;
 
+					MapTileReference tile = MapTileReference(i_t);
+					for(int rect_y = 0; rect_y < height; rect_y++) {
+						for(int rect_x = 0; rect_x < width; rect_x++) {
+							int map_x = i_x->valueint + rect_x;
+							int map_y = i_y->valueint + rect_y;
+							if(map_x < 0 || map_y < 0 || map_x >= this->town_map.width || map_y >= this->town_map.height)
+								continue;
+							size_t map_index = map_y * this->town_map.width + map_x;
+							this->town_map.cells[map_index].turf = tile;
+						}
+					}
+				}
 			}
 
 			cJSON *i_obj = get_json_item(json, "obj");
 			if(i_obj) {
+				cJSON *item;
+				cJSON_ArrayForEach(item, i_obj) {
+					if(!cJSON_IsArray(item))
+						continue;
+					int len = cJSON_GetArraySize(item);
+					if(len != 3 && len != 5)
+						continue;
+					cJSON *i_x = cJSON_GetArrayItem(item, 0);
+					cJSON *i_y = cJSON_GetArrayItem(item, 1);
+					cJSON *i_t = cJSON_GetArrayItem(item, 2);
+					cJSON *i_w = (len == 5)?cJSON_GetArrayItem(item, 3) : nullptr;
+					cJSON *i_h = (len == 5)?cJSON_GetArrayItem(item, 4) : nullptr;
+					int width = i_w ? i_w->valueint : 1;
+					int height = i_h ? i_h->valueint : 1;
+					if(!cJSON_IsNumber(i_x) || !cJSON_IsNumber(i_y) || (i_w&&!cJSON_IsNumber(i_w)) || (i_h&&!cJSON_IsNumber(i_h)) || !cJSON_IsArray(i_t))
+						continue;
 
+					// Get object list
+					std::vector<struct MapTileReference> objs;
+					cJSON *object;
+					cJSON_ArrayForEach(object, i_t) {
+						objs.push_back(object);
+					}
+					for(int rect_y = 0; rect_y < i_h->valueint; rect_y++) {
+						for(int rect_x = 0; rect_x < i_w->valueint; rect_x++) {
+							int map_x = i_x->valueint + rect_x;
+							int map_y = i_y->valueint + rect_y;
+							if(map_x < 0 || map_y < 0 || map_x >= this->town_map.width || map_y >= this->town_map.height)
+								continue;
+							size_t map_index = map_y * this->town_map.width + map_x;
+							this->town_map.cells[map_index].objs = objs;
+						}
+					}
+				}
 			}
+
 			break;
 		}
 
 		case protocol_command_as_int('W', 'H', 'O'):
 		{
-//<-- WHO {"list": {"[id]": {"name": name, "pic": [s, x, y], "x": x, "y": y, "dir": dir, "id": id}, "you":id}
-//<-- WHO {"add": {"name": name, "pic": [s, x, y], "x": x, "y": y, "dir", dir, "id": id}}
-//<-- WHO {"update": {"id": id, other fields}}
 			cJSON *i_you = get_json_item(json, "you");
 			if(i_you) {
 				this->your_id = json_as_string(i_you);
@@ -501,7 +617,6 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 
 		case protocol_command_as_int('P', 'R', 'I'):
 		{
-// <-- PRI {"text": "[text"], "name": display name, "username": username, "receive": true/false}
 			const char *i_text = get_json_string(json, "text");
 			const char *i_name = get_json_string(json, "name");
 			cJSON *i_username = get_json_item(json, "username");
@@ -511,13 +626,12 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 				break;
 			std::string username = json_as_string(i_username);
 			bool b_receive = cJSON_IsTrue(i_receive);
-			printf("%s[%s(%s)]: %s\n", b_receive?"<--":"-->", i_name, username.c_str(), i_text);
+			printf("%s[%s(%s)] %s\n", b_receive?"<--":"-->", i_name, username.c_str(), i_text);
 			break;
 		}
 
 		case protocol_command_as_int('E', 'R', 'R'):
 		{
-// <-- ERR {"text": "[text]"}
 			const char *i_text = get_json_string(json, "text");
 			if(i_text)
 				printf("\x1b[31m%s\x1b[0m\n", i_text);
