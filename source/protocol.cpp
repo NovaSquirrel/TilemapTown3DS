@@ -250,8 +250,10 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			// Write default turf
 			int x1, y1, x2, y2;
 			if(unpack_json_int_array(i_pos, 4, &x1, &y1, &x2, &y2)) {
+				if(x1 > x2 || y1 > y2)
+					break;
 				for(int x=x1; x<=x2; x++) {
-					for(int y=y1; y<y2; y++) {
+					for(int y=y1; y<=y2; y++) {
 						int index = y * this->town_map.width + x;
 						this->town_map.cells[index] = MapCell(default_tile);
 					}

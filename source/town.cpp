@@ -115,6 +115,12 @@ void TilemapTownClient::turn_player(int direction) {
 	Entity *you = this->your_entity();
 	if(!you)
 		return;
+	you->update_direction(direction);
+
+	cJSON *json = cJSON_CreateObject();
+	cJSON_AddNumberToObject(json, "dir", (double)direction);
+	this->websocket_write("MOV", json);
+	cJSON_Delete(json);
 }
 
 void TilemapTownClient::move_player(int offset_x, int offset_y) {
@@ -145,9 +151,12 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	}
 	you->update_direction(new_direction);
 
+	bool bumped = false;
+	int bumped_x, bumped_y;
+
 	int new_x = player_x + offset_x;
 	if(new_x < 0)
-		new_x = 0;
+		new_x = 0;    
 	if(new_x >= this->town_map.width)
 		new_x = this->town_map.width-1;
 
@@ -156,6 +165,11 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 		new_y = 0;
 	if(new_y >= this->town_map.height)
 		new_y = this->town_map.height-1;
+	if((new_x != player_x + offset_x) || (new_y != player_y + offset_y)) {
+		bumped = true;
+		bumped_x = player_x + offset_x;
+		bumped_y = player_y + offset_y;
+	}
 
 	you->x = new_x;
 	you->y = new_y;
@@ -165,8 +179,11 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	MapTileInfo *turf = cell->turf.get(this);
 	if(turf && turf->density) {
 		// Go back
+		bumped = true;
+		bumped_x = you->x;
+		bumped_y = you->y;
 		you->x = player_x;
-		you->y = player_y;
+		you->y = player_y;		
 	}
 
 	for(auto & obj_reference : cell->objs) {
@@ -177,6 +194,11 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 			printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign") ? "The sign" : obj->name.c_str(), obj->message.c_str());
 		}
 		if(obj->density) {
+			if(!bumped) {
+				bumped = true;
+				bumped_x = you->x;
+				bumped_y = you->y;
+			}
 			// Go back
 			you->x = player_x;
 			you->y = player_y;
@@ -184,18 +206,25 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	}
 
 	cJSON *json = cJSON_CreateObject();
-	int from_array[2] = {player_x, player_y};
-	cJSON *json_from = cJSON_CreateIntArray(from_array, 2);
-	cJSON_AddItemToObject(json, "from", json_from);
+	if(!bumped) {
+		int from_array[2] = {player_x, player_y};
+		cJSON *json_from = cJSON_CreateIntArray(from_array, 2);
+		cJSON_AddItemToObject(json, "from", json_from);
 
-	int to_array[2] = {you->x, you->y};
-	cJSON *json_to = cJSON_CreateIntArray(to_array, 2);
-	cJSON_AddItemToObject(json, "to", json_to);
-
+		int to_array[2] = {you->x, you->y};
+		cJSON *json_to = cJSON_CreateIntArray(to_array, 2);
+		cJSON_AddItemToObject(json, "to", json_to);
+	} else {
+		int bump_array[2] = {bumped_x, bumped_y};
+		cJSON *json_bump = cJSON_CreateIntArray(bump_array, 2);
+		cJSON_AddItemToObject(json, "bump", json_bump);
+	}
 	cJSON_AddNumberToObject(json, "dir", (double)new_direction);
 
 	this->websocket_write("MOV", json);
 	cJSON_Delete(json);
+
+	you->walk_timer = 30+1; // 30*(16.6666ms/1000) = 0.5
 }
 
 void Entity::update_direction(int direction) {
