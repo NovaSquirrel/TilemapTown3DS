@@ -95,6 +95,9 @@ public:
 	int width, height;
 	std::vector<MapCell> cells;
 
+	// Metadata
+	int id;
+
 	void init_map(int width, int height);
 };
 

@@ -246,7 +246,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	this->http.client = this;
 
 	// Kick off the connection!
-	this->websocket_write("IDN");
+	this->websocket_write("IDN {\"features\": {\"batch\": {\"version\": \"0.0.1\"}}}");
 	//this->websocket_write("CMD {\"text\": \"nick 3ds\"}");
 
 	this->connected = true;

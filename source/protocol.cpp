@@ -168,9 +168,24 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 	if(length < 3)
 		return;
 	cJSON *json = NULL;
-	if(length > 4)
-		json = cJSON_ParseWithLength(text+4, length-4);
 
+	if(length > 4) {
+		// Batch messages need special parsing
+		if(text[0] == 'B' && text[1] == 'A' && text[2] == 'T' && text[3] == ' ') {
+			int base = 4, scan = 4;
+			while(scan < length) {
+				if(text[scan] == '\n') {
+					this->websocket_message(text+base, scan-base);
+					base = scan+1;
+				}
+				scan++;
+			}
+			this->websocket_message(text+base, scan-base);
+			return;
+		} else {
+			json = cJSON_ParseWithLength(text+4, length-4);
+		}
+	}
 	// printf("Received %c%c%c\n", text[0], text[1], text[2]);
 
 	switch(protocol_command_as_int(text[0], text[1], text[2])) {
@@ -231,6 +246,11 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			int width, height;
 			if(unpack_json_int_array(i_size, 2, &width, &height)) {
 				this->town_map.init_map(width, height);
+			}
+			if(cJSON_IsNumber(i_id)) {
+				this->town_map.id = i_id->valueint;
+			} else {
+				this->town_map.id = 0;
 			}
 			break;
 		}

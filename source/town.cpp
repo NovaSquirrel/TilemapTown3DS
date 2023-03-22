@@ -218,6 +218,11 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 		int bump_array[2] = {bumped_x, bumped_y};
 		cJSON *json_bump = cJSON_CreateIntArray(bump_array, 2);
 		cJSON_AddItemToObject(json, "bump", json_bump);
+
+		// Tell server what map the bump is intended for
+		if(this->town_map.id != 0) {
+			cJSON_AddNumberToObject(json, "if_map", this->town_map.id);
+		}
 	}
 	cJSON_AddNumberToObject(json, "dir", (double)new_direction);
 
