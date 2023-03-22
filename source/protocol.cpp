@@ -172,7 +172,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 	if(length > 4) {
 		// Batch messages need special parsing
 		if(text[0] == 'B' && text[1] == 'A' && text[2] == 'T' && text[3] == ' ') {
-			int base = 4, scan = 4;
+			size_t base = 4, scan = 4;
 			while(scan < length) {
 				if(text[scan] == '\n') {
 					this->websocket_message(text+base, scan-base);
