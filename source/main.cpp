@@ -21,10 +21,18 @@
 int network_init();
 void network_finish();
 void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTownClient *client, void *userdata);
+
+bool main_menu();
 void show_keyboard(TilemapTownClient *client);
+const char *prompt_for_text(const char *hint, const char *initial);
 
 extern int texture_loaded_yet;
 extern C3D_Tex loaded_texture;
+
+// Login settings
+extern char login_hostname[256];
+extern char login_path[256];
+extern char login_port[6];
 
 void wait_for_key() {
 	// Just wait for keys and then exit
@@ -48,6 +56,7 @@ int main(int argc, char* argv[]) {
 	consoleInit(GFX_BOTTOM, NULL);
 
 	C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+	bool want_to_exit = false;
 
 	if(network_init() == 0) {
 		printf("network_init call failed!\n");
@@ -55,53 +64,65 @@ int main(int argc, char* argv[]) {
 		goto cleanup;
 	}
 
-	puts("Attempting to connect to the server...");
-	if(!client.network_connect("novasquirrel.com", "/townws/", "443")) {
-		puts("Couldn't connect to the server");
-		wait_for_key();
-		goto cleanup;
-	}
-	puts("Connected! Press X to chat.");
-
-	// --------------------------------------------------------------
-
-	// Main loop
-	while (aptMainLoop()) {
-		//gspWaitForVBlank();
-		//gfxSwapBuffers();
-		hidScanInput();
-
-		client.network_update();
-		
-		u32 kHeld       = hidKeysHeld();
-		u32 kDown       = hidKeysDown();
-		u32 kDownRepeat = hidKeysDownRepeat();
-		if(kDown & KEY_B) {
-			printf("How many tiles: %d\n", client.tileset.size());
-		}
-		if(kDown & KEY_X) {
-			show_keyboard(&client);
-		}
-
-		if(kDownRepeat & KEY_LEFT)  client.move_player(-1,  0);
-		if(kDownRepeat & KEY_DOWN)  client.move_player( 0,  1);
-		if(kDownRepeat & KEY_UP)    client.move_player( 0, -1);
-		if(kDownRepeat & KEY_RIGHT) client.move_player( 1,  0);
-
-		if(kDown & KEY_START)
+	while(!want_to_exit) {
+		if(!main_menu())
 			break;
 
-		// Render the scene
-		C3D_FrameBegin(C3D_FRAME_SYNCDRAW); // vsync
-		C2D_TargetClear(top, C2D_Color32(0, 0, 0, 255));
-		C2D_SceneBegin(top);
-		client.update_camera(0, 0);
-		client.draw_map(round(client.camera_x), round(client.camera_y));
+		puts("Attempting to connect to the server...");
+		if(!client.network_connect(login_hostname, login_path, login_port)) {
+			puts("Couldn't connect to the server");
+			wait_for_key();
+			continue;
+		}
+		puts("Connected! Press X to chat.");
 
-		C3D_FrameEnd(0);
+		// --------------------------------------------------------------
+
+		// Main loop
+		while (aptMainLoop() && client.connected) {
+			//gspWaitForVBlank();
+			//gfxSwapBuffers();
+			hidScanInput();
+
+			client.network_update();
+			
+			//u32 kHeld       = hidKeysHeld();
+			u32 kDown       = hidKeysDown();
+			u32 kDownRepeat = hidKeysDownRepeat();
+			if(kDown & KEY_B) {
+				printf("How many tiles: %d\n", client.tileset.size());
+			}
+			if(kDown & KEY_X) {
+				show_keyboard(&client);
+			}
+
+			if(kDownRepeat & KEY_LEFT)  client.move_player(-1,  0);
+			if(kDownRepeat & KEY_DOWN)  client.move_player( 0,  1);
+			if(kDownRepeat & KEY_UP)    client.move_player( 0, -1);
+			if(kDownRepeat & KEY_RIGHT) client.move_player( 1,  0);
+
+			if(kDown & KEY_CSTICK_LEFT)  client.turn_player(4);
+			if(kDown & KEY_CSTICK_DOWN)  client.turn_player(2);
+			if(kDown & KEY_CSTICK_UP)    client.turn_player(6);
+			if(kDown & KEY_CSTICK_RIGHT) client.turn_player(0);
+
+			if(kDown & KEY_START) {
+				want_to_exit = true;
+				break;
+			}
+
+			// Render the scene
+			C3D_FrameBegin(C3D_FRAME_SYNCDRAW); // vsync
+			C2D_TargetClear(top, C2D_Color32(0, 0, 0, 255));
+			C2D_SceneBegin(top);
+			client.update_camera(0, 0);
+			client.draw_map(round(client.camera_x), round(client.camera_y));
+
+			C3D_FrameEnd(0);
+		}
+
+		client.network_disconnect();
 	}
-
-	client.network_disconnect();
 
 cleanup:
 	network_finish();

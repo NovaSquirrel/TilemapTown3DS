@@ -35,6 +35,36 @@ void keyboard_thread(void *arg) {
 	}
 }
 
+SwkbdState swkbd;
+char keyboard_text_buffer[1024];
+SwkbdStatusData swkbdStatus;
+SwkbdLearningData swkbdLearning;
+bool reload_keyboard = false;
+
+SwkbdButton keyboard_prompt_common(const char *hint, const char *submit, const char *initial, size_t limit) {
+	swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, -1);
+	swkbdSetInitialText(&swkbd, initial ? initial : "");
+	if(hint)
+		swkbdSetHintText(&swkbd, hint);
+	swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+	swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, submit, true);
+	swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+	bool reload = false;
+	swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
+	swkbdSetLearningData(&swkbd, &swkbdLearning, reload, true);
+	reload = true;
+	return swkbdInputText(&swkbd, keyboard_text_buffer, limit ? limit : sizeof(keyboard_text_buffer));
+}
+
+const char *prompt_for_text(const char *hint, const char *initial, size_t limit) {
+	SwkbdButton button = keyboard_prompt_common(hint, "Submit", initial, limit);
+	if(button == SWKBD_BUTTON_CONFIRM && keyboard_text_buffer[0]) {
+		return keyboard_text_buffer;
+	} else {
+		return NULL;
+	}
+}
+
 void show_keyboard(TilemapTownClient *client) {
 	// Create background thread
 
@@ -46,22 +76,7 @@ void show_keyboard(TilemapTownClient *client) {
 
 	// Display keyboard
 
-	static SwkbdState swkbd;
-	static char text_buffer[1024];
-	static SwkbdStatusData swkbdStatus;
-	static SwkbdLearningData swkbdLearning;
-
-	swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, -1);
-	swkbdSetInitialText(&swkbd, "");
-	swkbdSetHintText(&swkbd, "Chat!");
-	swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
-	swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Send", true);
-	swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
-	static bool reload = false;
-	swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
-	swkbdSetLearningData(&swkbd, &swkbdLearning, reload, true);
-	reload = true;
-	SwkbdButton button = swkbdInputText(&swkbd, text_buffer, sizeof(text_buffer));
+	SwkbdButton button = keyboard_prompt_common("Chat!", "Send", NULL, 0);
 
 	// Stop thread
 
@@ -71,16 +86,16 @@ void show_keyboard(TilemapTownClient *client) {
 
 	// Send the message
 
-	if(button == SWKBD_BUTTON_CONFIRM && text_buffer[0]) {
-		if(!strcmp(text_buffer, "/clear")) {
+	if(button == SWKBD_BUTTON_CONFIRM && keyboard_text_buffer[0]) {
+		if(!strcmp(keyboard_text_buffer, "/clear")) {
 			consoleClear();
 		} else {
 			cJSON *json = cJSON_CreateObject();
-			if(text_buffer[0] == '/' && !(text_buffer[1] == 'm' && text_buffer[2] == 'e' && text_buffer[3] == ' ')) {
-				cJSON_AddStringToObject(json, "text", text_buffer+1);
+			if(keyboard_text_buffer[0] == '/' && !(keyboard_text_buffer[1] == 'm' && keyboard_text_buffer[2] == 'e' && keyboard_text_buffer[3] == ' ')) {
+				cJSON_AddStringToObject(json, "text", keyboard_text_buffer+1);
 				client->websocket_write("CMD", json);
 			} else {
-				cJSON_AddStringToObject(json, "text", text_buffer);
+				cJSON_AddStringToObject(json, "text", keyboard_text_buffer);
 				client->websocket_write("MSG", json);
 			}
 			cJSON_Delete(json);

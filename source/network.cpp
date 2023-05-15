@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "town.hpp"
+#include "cJSON.h"
 #include <stdlib.h>
 
 #ifdef __3DS__
@@ -54,6 +55,11 @@ struct wslay_event_callbacks wslay_callbacks = {
 };
 
 static u32 *SOC_buffer = NULL;
+
+// Login details
+extern char login_username[256];
+extern char login_password[256];
+extern bool guest_login;
 
 // ----------------------------------------------
 // - Initialization
@@ -244,12 +250,28 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 
 	// Other initialization
 	this->http.client = this;
-
-	// Kick off the connection!
-	this->websocket_write("IDN {\"features\": {\"batch\": {\"version\": \"0.0.1\"}}}");
-	//this->websocket_write("CMD {\"text\": \"nick 3ds\"}");
-
 	this->connected = true;
+
+	{
+	// Kick off the connection by sending a IDN message!
+	// Build the IDN message to send.
+	cJSON *json = cJSON_CreateObject();
+	cJSON *json_features = cJSON_CreateObject();
+	cJSON *json_features_batch = cJSON_CreateObject();
+
+	cJSON_AddItemToObjectCS(json, "features", json_features);
+	cJSON_AddItemToObjectCS(json_features, "batch", json_features_batch);
+	cJSON_AddStringToObject(json_features_batch, "version", "0.0.1");
+	if(!guest_login && login_username[0] && login_password[0]) {
+		cJSON_AddStringToObject(json, "username", login_username);
+		cJSON_AddStringToObject(json, "password", login_password);
+	}
+	this->websocket_write("IDN", json);
+	cJSON_Delete(json);
+	}
+
+	//this->websocket_write("IDN {\"features\": {\"batch\": {\"version\": \"0.0.1\"}}}");
+	//this->websocket_write("CMD {\"text\": \"nick 3ds\"}");
 	return 1;
 
 fail:
@@ -408,12 +430,20 @@ void HttpFileCache::get(std::string url, void (*callback) (const char *url, uint
 // - Websockets
 // ----------------------------------------------
 
+void wait_for_key();
+
 ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int flags, void *user_data) {
 	TilemapTownClient *client = (TilemapTownClient*)user_data;
 
 	int ret = mbedtls_ssl_read(&client->ssl, data, len);
-	if(ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_WRITE || ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
+	if(ret <= 0) {
+		if(ret < 0 && ret != MBEDTLS_ERR_SSL_WANT_WRITE && ret != MBEDTLS_ERR_SSL_WANT_READ) {
+			client->connected = false;
+			printf("Received recv error code %d\n", ret);
+			wait_for_key();
+		}
 		return WSLAY_ERR_WOULDBLOCK;
+	}
 	return ret;
 }
 
@@ -422,7 +452,14 @@ ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len,
 
 	int ret = mbedtls_ssl_write(&client->ssl, data, len);
 	if(ret == MBEDTLS_ERR_SSL_WANT_WRITE || ret == MBEDTLS_ERR_SSL_WANT_READ)
+	if(ret <= 0) {
+		if(ret < 0 && ret != MBEDTLS_ERR_SSL_WANT_WRITE && ret != MBEDTLS_ERR_SSL_WANT_READ) {
+			client->connected = false;
+			printf("Received send error code %d\n", ret);
+			wait_for_key();
+		}
 		return WSLAY_ERR_WOULDBLOCK;
+	}
 	return ret;
 }
 
