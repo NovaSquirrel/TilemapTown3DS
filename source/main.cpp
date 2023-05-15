@@ -122,6 +122,12 @@ int main(int argc, char* argv[]) {
 		}
 
 		client.network_disconnect();
+		// Free this here instead of inside network_disconnect because network_disconnect can be called within a websocket callback
+		// and freeing the websocket in there can be bad.
+		if(client.websocket) {
+			wslay_event_context_free(client.websocket);
+			client.websocket = nullptr;
+		}
 	}
 
 cleanup:

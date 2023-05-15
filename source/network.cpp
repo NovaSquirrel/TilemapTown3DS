@@ -43,6 +43,7 @@ ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int f
 ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len, int flags, void *user_data);
 int wslay_genmask(wslay_event_context_ptr ctx, uint8_t *buf, size_t len, void *user_data);
 void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_recv_arg *arg, void *user_data);
+void wait_for_key();
 
 struct wslay_event_callbacks wslay_callbacks = {
 	wslay_recv,
@@ -295,15 +296,14 @@ void TilemapTownClient::network_disconnect() {
 		mbedtls_ctr_drbg_free(&this->ctr_drbg);
 		mbedtls_entropy_free(&this->entropy);
 
-		wslay_event_context_free(this->websocket);
-
 		this->connected = false;
 	}
 }
 
 void TilemapTownClient::network_update() {
-	wslay_event_recv(this->websocket);
-	if(wslay_event_want_write(this->websocket))
+	if(this->connected)
+		wslay_event_recv(this->websocket);
+	if(this->connected && wslay_event_want_write(this->websocket))
         wslay_event_send(this->websocket);
 	this->http.run_transfers();
 }
@@ -430,17 +430,16 @@ void HttpFileCache::get(std::string url, void (*callback) (const char *url, uint
 // - Websockets
 // ----------------------------------------------
 
-void wait_for_key();
-
 ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int flags, void *user_data) {
 	TilemapTownClient *client = (TilemapTownClient*)user_data;
 
+	if(!client->connected)
+		return WSLAY_ERR_WOULDBLOCK;
 	int ret = mbedtls_ssl_read(&client->ssl, data, len);
 	if(ret <= 0) {
 		if(ret < 0 && ret != MBEDTLS_ERR_SSL_WANT_WRITE && ret != MBEDTLS_ERR_SSL_WANT_READ) {
 			client->connected = false;
 			printf("Received recv error code %d\n", ret);
-			wait_for_key();
 		}
 		return WSLAY_ERR_WOULDBLOCK;
 	}
@@ -450,13 +449,13 @@ ssize_t wslay_recv(wslay_event_context_ptr ctx, uint8_t *data, size_t len, int f
 ssize_t wslay_send(wslay_event_context_ptr ctx, const uint8_t *data, size_t len, int flags, void *user_data) {
 	TilemapTownClient *client = (TilemapTownClient*)user_data;
 
+	if(!client->connected)
+		return WSLAY_ERR_WOULDBLOCK;
 	int ret = mbedtls_ssl_write(&client->ssl, data, len);
-	if(ret == MBEDTLS_ERR_SSL_WANT_WRITE || ret == MBEDTLS_ERR_SSL_WANT_READ)
 	if(ret <= 0) {
 		if(ret < 0 && ret != MBEDTLS_ERR_SSL_WANT_WRITE && ret != MBEDTLS_ERR_SSL_WANT_READ) {
 			client->connected = false;
 			printf("Received send error code %d\n", ret);
-			wait_for_key();
 		}
 		return WSLAY_ERR_WOULDBLOCK;
 	}
@@ -474,8 +473,9 @@ void wslay_message(wslay_event_context_ptr ctx, const struct wslay_event_on_msg_
 	if(arg->opcode == WSLAY_TEXT_FRAME) {
 		client->websocket_message((const char*)arg->msg, arg->msg_length);
 	} else if(arg->opcode == WSLAY_CONNECTION_CLOSE) {
-		puts("Connection closed");
+		puts("\x1b[31mConnection closed\x1b[0m\nPress A to continue");
 		client->network_disconnect();
+		wait_for_key();
 	}
 }
 
