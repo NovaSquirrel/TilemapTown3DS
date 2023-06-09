@@ -12,6 +12,7 @@ Tilemap Town 3DS executables include the following open source libraries:
 * libgcc - GPLv3 with linking exception
 * libstdc++ - GPLv3 with linking exception
 
+* [cJSON](https://github.com/DaveGamble/cJSON) - MIT
 * [mbedtls](https://github.com/Mbed-TLS/mbedtls) - Apache 2.0
 * [wslay](https://github.com/tatsuhiro-t/wslay) - MIT
 * [libcurl](https://curl.se/libcurl/) - [libcurl license](https://curl.se/docs/copyright.html)
