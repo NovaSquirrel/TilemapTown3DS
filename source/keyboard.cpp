@@ -91,9 +91,21 @@ void show_keyboard(TilemapTownClient *client) {
 			consoleClear();
 		} else {
 			cJSON *json = cJSON_CreateObject();
-			if(keyboard_text_buffer[0] == '/' && !(keyboard_text_buffer[1] == 'm' && keyboard_text_buffer[2] == 'e' && keyboard_text_buffer[3] == ' ')) {
-				cJSON_AddStringToObject(json, "text", keyboard_text_buffer+1);
-				client->websocket_write("CMD", json);
+			if(keyboard_text_buffer[0] == '/') {
+				if(keyboard_text_buffer[1] == '/') {
+					cJSON_AddStringToObject(json, "text", keyboard_text_buffer + 1);
+					client->websocket_write("MSG", json);
+				} else if(
+						// TODO: Do this in a way that looks cleaner??
+						(keyboard_text_buffer[1] == 'm' && keyboard_text_buffer[2] == 'e'  && keyboard_text_buffer[3] == ' ') ||
+						(keyboard_text_buffer[1] == 'o' && keyboard_text_buffer[2] == 'o'  && keyboard_text_buffer[3] == 'c' && keyboard_text_buffer[4] == ' ') ||
+						(keyboard_text_buffer[1] == 's' && keyboard_text_buffer[2] == 'p'  && keyboard_text_buffer[3] == 'o' && keyboard_text_buffer[4] == 'o' && keyboard_text_buffer[5] == 'f' && keyboard_text_buffer[6] == ' ')) {
+					cJSON_AddStringToObject(json, "text", keyboard_text_buffer);
+					client->websocket_write("MSG", json);
+				} else {
+					cJSON_AddStringToObject(json, "text", keyboard_text_buffer + 1);
+					client->websocket_write("CMD", json);
+				}
 			} else {
 				cJSON_AddStringToObject(json, "text", keyboard_text_buffer);
 				client->websocket_write("MSG", json);

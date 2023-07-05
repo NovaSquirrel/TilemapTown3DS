@@ -648,7 +648,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 				break;
 			std::string username = json_as_string(i_username);
 			bool b_receive = cJSON_IsTrue(i_receive);
-			printf("%s[%s(%s)] %s\n", b_receive?"<--":"-->", i_name, username.c_str(), i_text);
+			printf("\x1b[32m%s[%s(%s)] %s\x1b[0m\n", b_receive?"<--":"-->", i_name, username.c_str(), i_text);
 			break;
 		}
 
@@ -671,7 +671,15 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			cJSON *i_buttons    = get_json_item(json, "buttons");
 			if(i_text) {
 				if(i_name) {
-					printf("<%s> %s\n", i_name, i_text);
+					if(i_text[0] == '/' && i_text[1] == 'm' && i_text[2] == 'e' && i_text[3] == ' ') {
+						printf("* %s %s\n", i_name, i_text+4);
+					} else if(i_text[0] == '/' && i_text[1] == 'o' && i_text[2] == 'o' && i_text[3] == 'c' && i_text[4] == ' ') {
+						printf("\x1b[34m[OOC] %s: %s\x1b[0m\n", i_name, i_text+5);
+					} else if(i_text[0] == '/' && i_text[1] == 's' && i_text[2] == 'p' && i_text[3] == 'o' && i_text[4] == 'o' && i_text[5] == 'f' && i_text[6] == ' ') {
+						printf("* %s \x1b[34m(by %s)\x1b[0m\n", i_text+7, i_name);
+					} else {
+						printf("<%s> %s\n", i_name, i_text);
+					}
 				} else {
 					printf("\x1b[35m%s\x1b[0m\n", i_text);
 				}
