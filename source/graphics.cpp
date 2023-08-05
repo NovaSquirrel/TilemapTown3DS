@@ -196,7 +196,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 			for(auto & element : this->town_map.cells[index].objs) {
 				MapTileInfo *obj = element.get(this);
-				if(!obj)
+				if(!obj || obj->over)
 					continue;
 				C2D_Image *image = obj->pic.get(this);
 				if(image) {
@@ -228,7 +228,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 16, 16, 0, 0);
 				C2D_Image new_image = {image->tex, &subtexture};
-				C2D_DrawImageAt(new_image, (entity->x*16)-camera_x, (entity->y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
+				C2D_DrawImageAt(new_image, (entity->x*16)-camera_x+entity->offset_x, (entity->y*16)-camera_y+entity->offset_y, 0, NULL, 1.0f, -1.0f);
 			} else if(string_is_http_url(entity->pic.key)) {
 				int frame_x = 0, frame_y = 0;
 				int frame_count_from_animation_tick = this->animation_tick / 6;
@@ -248,11 +248,35 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 32, 32, frame_x, frame_y);
 				C2D_Image new_image = {image->tex, &subtexture};
-				C2D_DrawImageAt(new_image, (entity->x*16-8)-camera_x, (entity->y*16-16)-camera_y, 0, NULL, 1.0f, -1.0f);
+				C2D_DrawImageAt(new_image, (entity->x*16-8)-camera_x+entity->offset_x, (entity->y*16-16)-camera_y+entity->offset_y, 0, NULL, 1.0f, -1.0f);
 			} else {
-				C2D_DrawImageAt(*image, (entity->x*16)-camera_x, (entity->y*16)-camera_y, 0, NULL, 1.0f, -1.0f);
+				C2D_DrawImageAt(*image, (entity->x*16)-camera_x+entity->offset_x, (entity->y*16)-camera_y+entity->offset_y, 0, NULL, 1.0f, -1.0f);
 			}
 
+		}
+	}
+
+	// Display "over" objects (Could be reworked to avoid scanning over the map a second time, but it's probably fine)
+	for(int y=0; y<=VIEW_HEIGHT_TILES; y++) {
+		for(int x=0; x<=VIEW_WIDTH_TILES; x++) {
+			int real_x = camera_tile_x + x;
+			int real_y = camera_tile_y + y;
+			if(real_x < 0 || real_x >= this->town_map.width || real_y < 0 || real_y >= this->town_map.height)
+				continue;
+
+			int index = real_y * this->town_map.width + real_x;
+
+			// Draw objects
+
+			for(auto & element : this->town_map.cells[index].objs) {
+				MapTileInfo *obj = element.get(this);
+				if(!obj || !obj->over)
+					continue;
+				C2D_Image *image = obj->pic.get(this);
+				if(image) {
+					C2D_DrawImageAt(*image, x*16-camera_offset_x, y*16-camera_offset_y, 0, NULL, 1.0f, -1.0f);
+				}
+			}
 		}
 	}
 }

@@ -142,6 +142,8 @@ public:
 	int direction;
 	int direction_4;
 	int direction_lr;
+	int offset_x;
+	int offset_y;
 
 	std::string apply_json(cJSON *json);
 	void update_direction(int direction);
@@ -159,6 +161,7 @@ struct MapTileInfo {
 
 	// Appearance
 	Pic pic;          // [sheet, x, y] format
+	bool over;        // Display on top of entities
 
 	// Game logic related
 	bool density;

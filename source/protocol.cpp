@@ -96,6 +96,7 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	cJSON *i_density = get_json_item(json, "density");
 	cJSON *i_type    = get_json_item(json, "type");
 	cJSON *i_message = get_json_item(json, "message");
+	cJSON *i_over    = get_json_item(json, "over");
 
 	if(!pic_from_json(i_pic, &out->pic)) {
 		return 0;
@@ -106,6 +107,7 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 
 	out->obj     = cJSON_IsTrue(i_obj);
 	out->density = cJSON_IsTrue(i_density);
+	out->over    = cJSON_IsTrue(i_over);
 
 	const char *s_type = cJSON_GetStringValue(i_type);
 	if(s_type)
@@ -124,6 +126,7 @@ std::string Entity::apply_json(cJSON *json) {
 	cJSON *i_x            = get_json_item(json, "x");
 	cJSON *i_y            = get_json_item(json, "y");
 	cJSON *i_dir          = get_json_item(json, "dir");
+	cJSON *i_offset       = get_json_item(json, "offset");
 	cJSON *i_id           = get_json_item(json, "id");
 	cJSON *i_passengers   = get_json_item(json, "passengers");
 	cJSON *i_vehicle      = get_json_item(json, "vehicle");
@@ -136,7 +139,7 @@ std::string Entity::apply_json(cJSON *json) {
 	if(cJSON_IsString(i_name)) this->name = json_as_string(i_name);
 	if(cJSON_IsNumber(i_x))    this->x = i_x->valueint;
 	if(cJSON_IsNumber(i_y))    this->y = i_y->valueint;
-	if(cJSON_IsNumber(i_dir))  this->direction = i_dir->valueint;
+	if(cJSON_IsNumber(i_dir))  this->update_direction(i_dir->valueint);
 	if(cJSON_IsArray(i_passengers)) {
 		this->passengers.clear();
 		cJSON *passenger;
@@ -149,7 +152,17 @@ std::string Entity::apply_json(cJSON *json) {
 	if(i_type);
 	if(i_in_user_list) this->in_user_list = cJSON_IsTrue(i_in_user_list);
 	if(i_typing)       this->is_typing = cJSON_IsTrue(i_typing);
-	if(i_id)           return json_as_string(i_id);
+	if(i_offset) {
+		int offset_x, offset_y;
+		if(unpack_json_int_array(i_offset, 2, &offset_x, &offset_y)) {
+			this->offset_x = offset_x;
+			this->offset_y = offset_y;
+		} else {
+			this->offset_x = 0;
+			this->offset_y = 0;
+		}
+	}
+	if(i_id) return json_as_string(i_id);
 	return "";
 }
 
@@ -199,14 +212,16 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			cJSON *i_from = get_json_item(json, "from");
 			cJSON *i_dir  = get_json_item(json, "dir");
 			cJSON *i_id   = get_json_item(json, "id");
+			cJSON *i_offset = get_json_item(json, "offset");
 			if(!cJSON_IsString(i_id) && !cJSON_IsNumber(i_id))
 				break;
 			std::string str_id = json_as_string(i_id);
 			if(str_id == this->your_id && i_from)
 				break;
+			// Find this entity
 			auto it = this->who.find(str_id);
 			if(it != this->who.end()) {
-				int to_x, to_y;
+				int to_x, to_y, offset_x, offset_y;
 				Entity *entity = &(*it).second;
 
 				if(unpack_json_int_array(i_to, 2, &to_x, &to_y)) {
@@ -214,6 +229,16 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 					entity->y = to_y;
 					if(entity->vehicle_id.empty() || entity->is_following) {
 						entity->walk_timer = 30+1; // 30*(16.6666ms/1000) = 0.5
+					}
+				}
+
+				if(i_offset) {
+					if(unpack_json_int_array(i_offset, 2, &offset_x, &offset_y)) {
+						entity->offset_x = offset_x;
+						entity->offset_y = offset_y;
+					} else {
+						entity->offset_x = 0;
+						entity->offset_y = 0;
 					}
 				}
 
