@@ -5,7 +5,7 @@
 
 Tilemap Town 3DS executables include the following open source libraries:
 
-* [crt0](https://github.com/devkitPro/devkitarm-crtls/blob/master/3dsx_crt0.s) - MLPv2
+* [crt0](https://github.com/devkitPro/devkitarm-crtls/blob/master/3dsx_crt0.s) - MPLv2
 * [newlib](https://sourceware.org/newlib/) - BSD-like licenses
 * [libctru](https://github.com/devkitPro/libctru) - zlib
 * [citro2d](https://github.com/devkitPro/citro2d) - zlib

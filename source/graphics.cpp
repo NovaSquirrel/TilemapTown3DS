@@ -217,6 +217,14 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 	for(auto& entity : sorted_entities) {
 		if(entity->walk_timer)
 			entity->walk_timer--;
+		if(
+			(entity->x < (camera_tile_x - 3)) ||
+			(entity->y < (camera_tile_y - 3)) ||
+			(entity->x > (camera_tile_x + VIEW_WIDTH_TILES + 3)) ||
+			(entity->y > (camera_tile_x + VIEW_HEIGHT_TILES + 3))
+		)
+			continue;
+
 		const C2D_Image *image = entity->pic.get(this);
 		if(image) {
 			int tileset_width  = entity->pic.extra_info->original_width;
