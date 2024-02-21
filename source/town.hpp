@@ -120,6 +120,7 @@ struct Pic {
 	LoadedTextureInfo *extra_info; // Can use this to get the original size
 
 	C2D_Image *get(TilemapTownClient *client);
+	C3D_Tex *get_texture(TilemapTownClient *client);
 	#endif
 };
 
@@ -158,10 +159,12 @@ struct MapTileInfo {
 	std::string key;  // Key used to look up this MapTileInfo
 	std::string name; // Name, for metadata
 	std::string message; // For signs
+	uint32_t autotile_class;
 
 	// Appearance
 	Pic pic;          // [sheet, x, y] format
 	bool over;        // Display on top of entities
+	uint8_t autotile_layout;
 
 	// Game logic related
 	uint8_t walls;
@@ -238,4 +241,8 @@ public:
 	Entity *your_entity();
 	void turn_player(int direction);
 	void move_player(int offset_x, int offset_y);
+
+	// Utility
+	bool is_autotile_match(MapTileInfo *turf, int x, int y);
+	unsigned int get_autotile_index_4(MapTileInfo *turf, int x, int y);
 };

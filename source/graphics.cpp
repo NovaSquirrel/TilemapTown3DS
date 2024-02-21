@@ -126,9 +126,9 @@ bool string_is_http_url(std::string &url) {
 	return url.starts_with("https://") || url.starts_with("http://");
 }
 
-C2D_Image* Pic::get(TilemapTownClient *client) {
+C3D_Tex* Pic::get_texture(TilemapTownClient *client) {
 	if(this->ready_to_draw) {
-		return &this->image;
+		return this->image.tex;
 	}
 
 	// Try to turn a key into a URL if needed
@@ -151,16 +151,73 @@ C2D_Image* Pic::get(TilemapTownClient *client) {
 
 		this->extra_info = &(*it).second; // Save this so we can get the original size later
 		this->subtexture = calc_subtexture(tex->width, tex->height, 16, 16, this->x, this->y);
-		this->image = {tex, &this->subtexture};
-		return &this->image;
+		this->image = {tex, &this->subtexture}; // Record the C2D_Image so Pic::get() can have it
+		return tex;
 	} else {
 		client->http.get(*real_url, http_png_callback, nullptr);
 		return nullptr;
 	}
 }
 
+C2D_Image* Pic::get(TilemapTownClient *client) {
+	if(this->ready_to_draw) {
+		return &this->image;
+	} else if(this->get_texture(client) != nullptr) {
+		return &this->image;
+	}
+	return nullptr;
+}
+
 bool sort_entity_by_y_pos(Entity *a, Entity *b) {
     return (a->y < b->y);
+}
+
+void draw_turf_with_pic_offset(TilemapTownClient *client, MapTileInfo *turf, int offset_x, int offset_y, float draw_x, float draw_y) {
+	C2D_Image *image = turf->pic.get(client);
+	if(image) {
+		Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 16, 16, turf->pic.x + offset_x, turf->pic.y + offset_y);
+		C2D_Image new_image = {image->tex, &subtexture};
+		C2D_DrawImageAt(new_image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+	}
+}
+
+void draw_turf_quadrant_with_pic_offset(TilemapTownClient *client, MapTileInfo *turf, int offset_x, int offset_y, float draw_x, float draw_y) {
+	C2D_Image *image = turf->pic.get(client);
+	if(image) {
+		Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 8, 8, turf->pic.x*2 + offset_x, turf->pic.y*2 + offset_y);
+		C2D_Image new_image = {image->tex, &subtexture};
+		C2D_DrawImageAt(new_image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+	}
+}
+
+bool TilemapTownClient::is_autotile_match(MapTileInfo *turf, int x, int y) {
+	// Is the tile on the map at x,y the "same" as 'turf' for autotiling purposes?
+	MapTileInfo *other;
+	if(x < 0 || x >= this->town_map.width || y < 0 || y >= this->town_map.height) {
+		other = turf;
+	} else {
+		other = this->town_map.cells[y * this->town_map.width + x].turf.get(this);
+	}
+
+	if(turf->autotile_class)
+		return turf->autotile_class == other->autotile_class;
+	if(!turf->name.empty())
+		return turf->name == other->name;
+	return false;
+}
+
+unsigned int TilemapTownClient::get_autotile_index_4(MapTileInfo *turf, int x, int y) {
+	/* Check on the four adjacent tiles and see if they "match", to get an index for an autotile lookup table.
+		Will result in one of the following:
+		 0 durl  1 durL  2 duRl  3 duRL
+		 4 dUrl  5 dUrL  6 dURl  7 dURL
+		 8 Durl  9 DurL 10 DuRl 11 DuRL
+		12 DUrl 13 DUrL 14 DURl 15 DURL
+	*/
+	return (this->is_autotile_match(turf, x-1, y) << 0)
+	     | (this->is_autotile_match(turf, x+1, y) << 1)
+	     | (this->is_autotile_match(turf, x, y-1) << 2)
+	     | (this->is_autotile_match(turf, x, y+1) << 3);
 }
 
 void TilemapTownClient::draw_map(int camera_x, int camera_y) {
@@ -184,12 +241,82 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
 
 			// Draw turf
+			float draw_x = x*16-camera_offset_x;
+			float draw_y = y*16-camera_offset_y;
 
 			if(turf) {
-				C2D_Image *image = turf->pic.get(this);
-				if(image) {
-					C2D_DrawImageAt(*image, x*16-camera_offset_x, y*16-camera_offset_y, 0, NULL, 1.0f, -1.0f);
+				switch(turf->autotile_layout) {
+					case 0: // No autotiling
+					{
+						C2D_Image *image = turf->pic.get(this);
+						if(image) {
+							C2D_DrawImageAt(*image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+						}
+						break;
+					}
+					case 1: // 4-direction autotiling, 9 tiles, origin is middle
+					{
+						unsigned int autotile_index = this->get_autotile_index_4(turf, real_x, real_y);
+						const static int offset_x_list[] = {0,0,0,0,   0,1,-1,0,    0, 1,-1, 0,  0,1,-1,0};
+						const static int offset_y_list[] = {0,0,0,0,   0,1, 1,1,    0,-1,-1,-1,  0,0, 0,0};
+						draw_turf_with_pic_offset(this, turf, offset_x_list[autotile_index], offset_y_list[autotile_index], draw_x, draw_y);
+						break;
+					}
+					case 2: // 4-direction autotiling, 9 tiles, origin is middle, horizonal & vertical & single as separate tiles
+					{
+						unsigned int autotile_index = this->get_autotile_index_4(turf, real_x, real_y);
+						const static int offset_x_list[] = { 2,1,-1,0};
+						const static int offset_y_list[] = {-2,1,-1,0};
+						draw_turf_with_pic_offset(this, turf, offset_x_list[autotile_index&3], offset_y_list[autotile_index>>2], draw_x, draw_y);
+						break;
+					}
+					case 3: // 8-direction autotiling, origin point is middle
+					case 4: // 8-direction autotiling, origin point is single
+					{
+						unsigned int autotile_index = this->get_autotile_index_4(turf, real_x, real_y);
+						const static int offset_0x[] = {-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0};
+						const static int offset_0y[] = {-4,-2,-2,-2, 2, 2, 2, 2,-2,-2,-2,-2, 0, 0, 0, 0};
+						const static int offset_1x[] = {-1, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1};
+						const static int offset_1y[] = {-4,-2,-2,-2, 2, 2, 2, 2,-2,-2,-2,-2, 0, 0, 0, 0};
+						const static int offset_2x[] = {-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0};
+						const static int offset_2y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1, 1,-1,-1, 1, 1, 1, 1};
+						const static int offset_3x[] = {-1, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1};
+						const static int offset_3y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1, 1,-1,-1, 1, 1, 1, 1};
+
+						int t0x = offset_0x[autotile_index], t0y = offset_0y[autotile_index];
+						int t1x = offset_1x[autotile_index], t1y = offset_1y[autotile_index];
+						int t2x = offset_2x[autotile_index], t2y = offset_2y[autotile_index];
+						int t3x = offset_3x[autotile_index], t3y = offset_3y[autotile_index];
+						
+						// Add the inner parts of turns
+						if(((autotile_index &  5) ==  5) && !this->is_autotile_match(turf, real_x-1, real_y-1)) {
+							t0x = 2; t0y = -4;
+						}
+						if(((autotile_index &  6) ==  6) && !this->is_autotile_match(turf, real_x+1, real_y-1)) {
+							t1x = 3; t1y = -4;
+						}
+						if(((autotile_index &  9) ==  9) && !this->is_autotile_match(turf, real_x-1, real_y+1)) {
+							t2x = 2; t2y = -3;
+						}
+						if(((autotile_index & 10) == 10) && !this->is_autotile_match(turf, real_x+1, real_y+1)) {
+							t3x = 3; t3y = -3;
+						}
+
+						// For 4 the origin point is on the single tile instead of the all-connected tile
+						if(turf->autotile_layout == 4) {
+							t0x += 2; t1x += 2; t2x += 2; t3x += 2;
+							t0y += 4; t1y += 4; t2y += 4; t3y += 4;
+						}
+
+						// Draw the four tiles
+						draw_turf_quadrant_with_pic_offset(this, turf, t0x, t0y, draw_x,   draw_y  );
+						draw_turf_quadrant_with_pic_offset(this, turf, t1x, t1y, draw_x+8, draw_y  );
+						draw_turf_quadrant_with_pic_offset(this, turf, t2x, t2y, draw_x,   draw_y+8);
+						draw_turf_quadrant_with_pic_offset(this, turf, t3x, t3y, draw_x+8, draw_y+8);
+						break;
+					}
 				}
+
 			}
 
 			// Draw objects
@@ -200,7 +327,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 					continue;
 				C2D_Image *image = obj->pic.get(this);
 				if(image) {
-					C2D_DrawImageAt(*image, x*16-camera_offset_x, y*16-camera_offset_y, 0, NULL, 1.0f, -1.0f);
+					C2D_DrawImageAt(*image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
 				}
 			}
 		}
@@ -229,10 +356,10 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 		if(image) {
 			int tileset_width  = entity->pic.extra_info->original_width;
 			int tileset_height = entity->pic.extra_info->original_height;
-			bool player_is_16x16 = false;
+			//bool player_is_16x16 = false;
 
 			if(tileset_width == 16 && tileset_height == 16) {
-				player_is_16x16 = true;
+				//player_is_16x16 = true;
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 16, 16, 0, 0);
 				C2D_Image new_image = {image->tex, &subtexture};
