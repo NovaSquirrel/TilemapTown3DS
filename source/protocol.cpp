@@ -94,6 +94,7 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	cJSON *i_pic     = get_json_item(json, "pic");
 	cJSON *i_obj     = get_json_item(json, "obj");
 	cJSON *i_density = get_json_item(json, "density");
+	cJSON *i_walls   = get_json_item(json, "walls");
 	cJSON *i_type    = get_json_item(json, "type");
 	cJSON *i_message = get_json_item(json, "message");
 	cJSON *i_over    = get_json_item(json, "over");
@@ -106,7 +107,8 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	out->name    = std::string(s_name ? s_name : "");
 
 	out->obj     = cJSON_IsTrue(i_obj);
-	out->density = cJSON_IsTrue(i_density);
+	out->walls   = cJSON_IsTrue(i_density) ? 255 : 0;
+	if (i_walls) out->walls |= i_walls->valueint;
 	out->over    = cJSON_IsTrue(i_over);
 
 	const char *s_type = cJSON_GetStringValue(i_type);

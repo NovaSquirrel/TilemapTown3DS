@@ -127,10 +127,10 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	Entity *you = this->your_entity();
 	if(!you)
 		return;
-	int player_x = you->x;
-	int player_y = you->y;
+	int original_x = you->x;
+	int original_y = you->y;
 
-	// Figure out the direction
+	// Figure out the direction from the offset
 	int new_direction = 0;
 	if(offset_x > 0 && offset_y == 0) {
 		new_direction = 0;
@@ -154,60 +154,100 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	bool bumped = false;
 	int bumped_x, bumped_y;
 
-	int new_x = player_x + offset_x;
+	int new_x = original_x + offset_x;
 	if(new_x < 0)
 		new_x = 0;    
 	if(new_x >= this->town_map.width)
 		new_x = this->town_map.width-1;
 
-	int new_y = player_y + offset_y;
+	int new_y = original_y + offset_y;
 	if(new_y < 0)
 		new_y = 0;
 	if(new_y >= this->town_map.height)
 		new_y = this->town_map.height-1;
-	if((new_x != player_x + offset_x) || (new_y != player_y + offset_y)) {
+	if((new_x != original_x + offset_x) || (new_y != original_y + offset_y)) {
 		bumped = true;
-		bumped_x = player_x + offset_x;
-		bumped_y = player_y + offset_y;
+		bumped_x = original_x + offset_x;
+		bumped_y = original_y + offset_y;
 	}
 
 	you->x = new_x;
 	you->y = new_y;
 
-	MapCell *cell = &this->town_map.cells[new_y * this->town_map.width + new_x];
+	////////////////////////////
+	// Check old tile for walls
+	////////////////////////////
+	MapCell *cell = &this->town_map.cells[original_y * this->town_map.width + original_x];
 
 	MapTileInfo *turf = cell->turf.get(this);
-	if(turf && turf->density) {
+	if(turf && (turf->walls & (1 << new_direction))) {
 		// Go back
 		bumped = true;
-		bumped_x = you->x;
-		bumped_y = you->y;
-		you->x = player_x;
-		you->y = player_y;		
+		bumped_x = original_x;
+		bumped_y = original_y;
+		you->x = original_x;
+		you->y = original_y;
 	}
 
 	for(auto & obj_reference : cell->objs) {
 		MapTileInfo *obj = obj_reference.get(this);
 		if(!obj)
 			continue;
-		if(obj->type == MAP_TILE_SIGN) {
-			printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign") ? "The sign" : obj->name.c_str(), obj->message.c_str());
-		}
-		if(obj->density) {
+		if(obj->walls & (1 << new_direction)) {
 			if(!bumped) {
 				bumped = true;
-				bumped_x = you->x;
-				bumped_y = you->y;
+				bumped_x = original_x;
+				bumped_y = original_y;
 			}
 			// Go back
-			you->x = player_x;
-			you->y = player_y;
+			you->x = original_x;
+			you->y = original_y;
 		}
 	}
 
+	////////////////////////////
+	// Check new tile for walls
+	////////////////////////////
+	if (!bumped) {
+		int dense_wall_bit = 1 << ((new_direction + 4) & 7); // For the new cell, the direction to check is rotated 180 degrees
+		cell = &this->town_map.cells[new_y * this->town_map.width + new_x];
+
+		turf = cell->turf.get(this);
+		if(turf && (turf->walls & dense_wall_bit)) {
+			// Go back
+			bumped = true;
+			bumped_x = you->x;
+			bumped_y = you->y;
+			you->x = original_x;
+			you->y = original_y;
+		}
+
+		for(auto & obj_reference : cell->objs) {
+			MapTileInfo *obj = obj_reference.get(this);
+			if(!obj)
+				continue;
+			if(obj->type == MAP_TILE_SIGN) {
+				printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign") ? "The sign" : obj->name.c_str(), obj->message.c_str());
+			}
+			if(obj->walls & dense_wall_bit) {
+				if(!bumped) {
+					bumped = true;
+					bumped_x = you->x;
+					bumped_y = you->y;
+				}
+				// Go back
+				you->x = original_x;
+				you->y = original_y;
+			}
+		}
+	}
+
+	//////////////////////////////////////
+	// Tell the server about the movement
+	//////////////////////////////////////
 	cJSON *json = cJSON_CreateObject();
 	if(!bumped) {
-		int from_array[2] = {player_x, player_y};
+		int from_array[2] = {original_x, original_y};
 		cJSON *json_from = cJSON_CreateIntArray(from_array, 2);
 		cJSON_AddItemToObject(json, "from", json_from);
 

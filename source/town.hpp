@@ -164,7 +164,7 @@ struct MapTileInfo {
 	bool over;        // Display on top of entities
 
 	// Game logic related
-	bool density;
+	uint8_t walls;
 	bool obj;
 	enum MapTileType type;
 };
