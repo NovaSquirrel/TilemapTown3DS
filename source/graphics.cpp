@@ -221,7 +221,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			(entity->x < (camera_tile_x - 3)) ||
 			(entity->y < (camera_tile_y - 3)) ||
 			(entity->x > (camera_tile_x + VIEW_WIDTH_TILES + 3)) ||
-			(entity->y > (camera_tile_x + VIEW_HEIGHT_TILES + 3))
+			(entity->y > (camera_tile_y + VIEW_HEIGHT_TILES + 3))
 		)
 			continue;
 
