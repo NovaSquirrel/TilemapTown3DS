@@ -267,6 +267,7 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 		cJSON_AddStringToObject(json, "username", login_username);
 		cJSON_AddStringToObject(json, "password", login_password);
 	}
+	cJSON_AddStringToObject(json, "client_name", "Tilemap Town 3DS Client");
 	this->websocket_write("IDN", json);
 	cJSON_Delete(json);
 	}
