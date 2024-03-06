@@ -263,15 +263,17 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 						break;
 					}
 					case 2: // 4-direction autotiling, 9 tiles, origin is middle, horizonal & vertical & single as separate tiles
+					case 3: // Same as 2, but origin point is single
 					{
 						unsigned int autotile_index = this->get_autotile_index_4(turf, real_x, real_y);
 						const static int offset_x_list[] = { 2,1,-1,0};
 						const static int offset_y_list[] = {-2,1,-1,0};
-						draw_turf_with_pic_offset(this, turf, offset_x_list[autotile_index&3], offset_y_list[autotile_index>>2], draw_x, draw_y);
+						bool isThree = turf->autotile_layout == 3;
+						draw_turf_with_pic_offset(this, turf, offset_x_list[autotile_index&3] - (isThree?2:0), offset_y_list[autotile_index>>2] + (isThree?2:0), draw_x, draw_y);
 						break;
 					}
-					case 3: // 8-direction autotiling, origin point is middle
-					case 4: // 8-direction autotiling, origin point is single
+					case 4: // 8-direction autotiling, origin point is middle
+					case 5: // 8-direction autotiling, origin point is single
 					{
 						unsigned int autotile_index = this->get_autotile_index_4(turf, real_x, real_y);
 						const static int offset_0x[] = {-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0};
@@ -303,7 +305,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 						}
 
 						// For 4 the origin point is on the single tile instead of the all-connected tile
-						if(turf->autotile_layout == 4) {
+						if(turf->autotile_layout == 5) {
 							t0x += 2; t1x += 2; t2x += 2; t3x += 2;
 							t0y += 4; t1y += 4; t2y += 4; t3y += 4;
 						}
