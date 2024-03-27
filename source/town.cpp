@@ -213,6 +213,9 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 		cell = &this->town_map.cells[new_y * this->town_map.width + new_x];
 
 		turf = cell->turf.get(this);
+		if(turf && turf->type == MAP_TILE_SIGN) {
+			printf("\x1b[35m%s says: %s\x1b[0m\n", (turf->name=="sign") ? "The sign" : turf->name.c_str(), turf->message.c_str());
+		}
 		if(turf && (turf->walls & dense_wall_bit)) {
 			// Go back
 			bumped = true;
