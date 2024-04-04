@@ -278,13 +278,13 @@ std::string Entity::apply_json(cJSON *json) {
 	return "";
 }
 
-MapTileReference::MapTileReference(cJSON *json) {
+MapTileReference::MapTileReference(cJSON *json, TilemapTownClient *client) {
 	if(cJSON_IsString(json)) {
 		this->tile = std::string(json->valuestring);
 	} else if(cJSON_IsObject(json)) {
 		MapTileInfo tile_info = MapTileInfo();
 		if(map_tile_from_json(json, &tile_info)) {
-			this->tile = std::make_shared<MapTileInfo>(tile_info);
+			this->tile = client->get_shared_pointer_to_tile(&tile_info);
 		}
 	}
 }
@@ -364,20 +364,20 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		case protocol_command_as_int('M', 'A', 'I'):
 		{
 // <-- MAI {"name": map_name, "id": map_id, "owner": whoever, "admins": list, "default": default_turf, "size": [width, height], "public": true/false, "private": true/false, "build_enabled": true/false, "full_sandbox": true/false, "you_allow": list, "you_deny": list
+			this->json_tileset.clear();
 			this->map_received = false;
 
-			cJSON *i_name          = get_json_item(json, "name");
+			//cJSON *i_name          = get_json_item(json, "name");
 			cJSON *i_id            = get_json_item(json, "id");
-			cJSON *i_owner         = get_json_item(json, "owner");
-			cJSON *i_admin         = get_json_item(json, "admins");
-			cJSON *i_default       = get_json_item(json, "default");
+			//cJSON *i_owner         = get_json_item(json, "owner");
+			//cJSON *i_default       = get_json_item(json, "default");
 
-			cJSON *i_public        = get_json_item(json, "public");
-			cJSON *i_private       = get_json_item(json, "private");
-			cJSON *i_build_enabled = get_json_item(json, "build_enabled");
-			cJSON *i_full_sandbox  = get_json_item(json, "full_sandbox");
-			cJSON *i_you_allow     = get_json_item(json, "you_allow");
-			cJSON *i_you_deny      = get_json_item(json, "you_deny");
+			//cJSON *i_public        = get_json_item(json, "public");
+			//cJSON *i_private       = get_json_item(json, "private");
+			//cJSON *i_build_enabled = get_json_item(json, "build_enabled");
+			//cJSON *i_full_sandbox  = get_json_item(json, "full_sandbox");
+			//cJSON *i_you_allow     = get_json_item(json, "you_allow");
+			//cJSON *i_you_deny      = get_json_item(json, "you_deny");
 
 			cJSON *i_size          = get_json_item(json, "size");
 			int width, height;
@@ -402,7 +402,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			if(!i_pos || !i_default || !i_turf || !i_obj)
 				break;
 
-			MapTileReference default_tile = MapTileReference(i_default);
+			MapTileReference default_tile = MapTileReference(i_default, this);
 
 			// Write default turf
 			int x1, y1, x2, y2;
@@ -427,7 +427,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 				cJSON *i_tile = cJSON_GetArrayItem(element, 2);
 				if(cJSON_IsNumber(i_x) && cJSON_IsNumber(i_y)) {
 					int index = i_y->valueint * this->town_map.width + i_x->valueint;
-					this->town_map.cells[index] = MapCell(i_tile);
+					this->town_map.cells[index] = MapCell(MapTileReference(i_tile, this));
 				}
 			}
 
@@ -445,7 +445,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 
 					cJSON *object;
 					cJSON_ArrayForEach(object, i_tile) {
-						objs->push_back(object);
+						objs->push_back(MapTileReference(object, this));
 					}
 				}
 			}
@@ -537,7 +537,7 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 					if(!cJSON_IsNumber(i_x) || !cJSON_IsNumber(i_y) || (i_w&&!cJSON_IsNumber(i_w)) || (i_h&&!cJSON_IsNumber(i_h)) )
 						continue;
 
-					MapTileReference tile = MapTileReference(i_t);
+					MapTileReference tile = MapTileReference(i_t, this);
 					for(int rect_y = 0; rect_y < height; rect_y++) {
 						for(int rect_x = 0; rect_x < width; rect_x++) {
 							int map_x = i_x->valueint + rect_x;
@@ -574,10 +574,10 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 					std::vector<struct MapTileReference> objs;
 					cJSON *object;
 					cJSON_ArrayForEach(object, i_t) {
-						objs.push_back(object);
+						objs.push_back(MapTileReference(object, this));
 					}
-					for(int rect_y = 0; rect_y < i_h->valueint; rect_y++) {
-						for(int rect_x = 0; rect_x < i_w->valueint; rect_x++) {
+					for(int rect_y = 0; rect_y < height; rect_y++) {
+						for(int rect_x = 0; rect_x < width; rect_x++) {
 							int map_x = i_x->valueint + rect_x;
 							int map_y = i_y->valueint + rect_y;
 							if(map_x < 0 || map_y < 0 || map_x >= this->town_map.width || map_y >= this->town_map.height)
@@ -732,11 +732,28 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		case protocol_command_as_int('I', 'M', 'G'):
 		{
 			cJSON *i_id  = get_json_item(json, "id");
+			cJSON *i_update = get_json_item(json, "update");
+
 			const char *i_url = get_json_string(json, "url");
 			if(i_id) {
 				std::string id = json_as_string(i_id);
 				this->url_for_tile_sheet[id] = i_url;
 				this->requested_tile_sheets.erase(id);
+
+				// Update images that are on preexisting tiles
+				if(cJSON_IsTrue(i_update)) {
+					for (auto value : this->tileset) {
+						if((*value.second).pic.key == id) {
+							(*value.second).pic.ready_to_draw = false;
+						}
+					}
+					for (auto value : this->json_tileset) {
+						std::shared_ptr<MapTileInfo> tile = value.second.lock();
+						if((*tile).pic.key == id) {
+							(*tile).pic.ready_to_draw = false;
+						}
+					}
+				}
 			}
 			break;
 		}
@@ -744,11 +761,11 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 		case protocol_command_as_int('T', 'S', 'D'):
 		{
 // <-- TSD {"id": number, "data": "[id, info, id, info, id, info, ...]"}
-			cJSON *i_id   = get_json_item(json, "id");
-			cJSON *i_data = get_json_item(json, "data");
-			if(i_id) {
+			//cJSON *i_id   = get_json_item(json, "id");
+			//cJSON *i_data = get_json_item(json, "data");
+			//if(i_id) {
 
-			}
+			//}
 			break;
 		}
 
@@ -804,8 +821,8 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 // <-- MSG {"text": "[text]", "name": speaker, "class": classname, "buttons": ["name 1", "command 1", "name 2", "command 2"]}
 			const char *i_text  = get_json_string(json, "text");
 			const char *i_name  = get_json_string(json, "name");
-			const char *i_class = get_json_string(json, "class");
-			cJSON *i_buttons    = get_json_item(json, "buttons");
+			//const char *i_class = get_json_string(json, "class");
+			//cJSON *i_buttons    = get_json_item(json, "buttons");
 			if(i_text) {
 				if(i_name) {
 					if(i_text[0] == '/' && i_text[1] == 'm' && i_text[2] == 'e' && i_text[3] == ' ') {

@@ -32,6 +32,28 @@ void TownMap::init_map(int width, int height) {
 	this->cells.resize(width * height);
 }
 
+// .-------------------------------------------------------
+// | Map tile functions
+// '-------------------------------------------------------
+
+std::shared_ptr<MapTileInfo> TilemapTownClient::get_shared_pointer_to_tile(MapTileInfo *tile) {
+	std::size_t hash = tile->hash();
+	std::shared_ptr<MapTileInfo> ptr;
+
+	// Look for it in the JSON tileset
+	auto it = this->json_tileset.find(hash);
+	if(it != this->json_tileset.end()) {
+		ptr = (*it).second.lock();
+		if(ptr)
+			return ptr;
+	}
+
+	// Not found, so cache it for later
+	ptr = make_shared<MapTileInfo>(*tile);
+	this->json_tileset[hash] = ptr;
+	return ptr;
+}
+
 MapTileInfo* MapTileReference::get(TilemapTownClient *client) {
 	if(const auto ptr = std::get_if<std::shared_ptr<MapTileInfo>>(&this->tile)) {
 		return (*ptr).get();
@@ -69,13 +91,51 @@ MapTileReference::MapTileReference(std::shared_ptr<MapTileInfo> tile) {
 	this->tile = tile;
 }
 
-MapTileReference::MapTileReference(MapTileInfo tile) {
-	this->tile = make_shared<MapTileInfo>(tile);
+MapTileReference::MapTileReference(MapTileInfo* tile, TilemapTownClient *client) {
+	this->tile = client->get_shared_pointer_to_tile(tile);
 }
 
 MapTileReference::MapTileReference() {
 	this->tile = std::monostate();
 }
+
+std::size_t hash_combine(std::size_t a, std::size_t b) {
+    unsigned prime = 0x01000193;
+    a *= prime;
+    a ^= b;
+	return a;
+}
+
+std::size_t MapTileInfo::hash() {
+	std::hash<uint32_t> uint32_hash;
+	std::hash<uint8_t> uint8_hash;
+	std::hash<std::string> str_hash;
+	std::hash<bool> bool_hash;
+
+	std::size_t hash = str_hash(this->key);
+	hash = hash_combine(hash, str_hash(this->name));
+	hash = hash_combine(hash, str_hash(this->message));
+	hash = hash_combine(hash, uint32_hash(this->autotile_class));
+	hash = hash_combine(hash, this->pic.hash());
+	hash = hash_combine(hash, bool_hash(this->over));
+	hash = hash_combine(hash, uint8_hash(this->autotile_layout));
+	hash = hash_combine(hash, uint8_hash(this->walls));
+	hash = hash_combine(hash, bool_hash(this->obj));
+	hash = hash_combine(hash, uint8_hash(this->type));
+	return hash;
+}
+
+std::size_t Pic::hash() {
+	std::hash<int> int_hash;
+	std::hash<std::string> str_hash;
+
+	std::size_t hash = str_hash(this->key);
+	hash = hash_combine(hash, int_hash(this->x));
+	hash = hash_combine(hash, int_hash(this->y));
+	return hash;
+}
+
+// --------------------------------------------------------
 
 MapCell::MapCell() {
 	this->turf = MapTileReference();
@@ -84,6 +144,10 @@ MapCell::MapCell() {
 MapCell::MapCell(struct MapTileReference turf) {
 	this->turf = turf;
 }
+
+// .-------------------------------------------------------
+// | Game logic/movement related
+// '-------------------------------------------------------
 
 Entity *TilemapTownClient::your_entity() {
 	if(this->your_id.empty())
@@ -214,7 +278,7 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 
 		turf = cell->turf.get(this);
 		if(turf && turf->type == MAP_TILE_SIGN) {
-			printf("\x1b[35m%s says: %s\x1b[0m\n", (turf->name=="sign") ? "The sign" : turf->name.c_str(), turf->message.c_str());
+			printf("\x1b[35m%s says: %s\x1b[0m\n", (turf->name=="sign" || turf->name.empty()) ? "The sign" : turf->name.c_str(), turf->message.c_str());
 		}
 		if(turf && (turf->walls & dense_wall_bit)) {
 			// Go back
@@ -230,7 +294,7 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 			if(!obj)
 				continue;
 			if(obj->type == MAP_TILE_SIGN) {
-				printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign") ? "The sign" : obj->name.c_str(), obj->message.c_str());
+				printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign" || obj->name.empty()) ? "The sign" : obj->name.c_str(), obj->message.c_str());
 			}
 			if(obj->walls & dense_wall_bit) {
 				if(!bumped) {

@@ -75,10 +75,10 @@ struct MapTileReference {
 	MapTileInfo* get(TilemapTownClient *client);
 
 	MapTileReference();
-	MapTileReference(struct cJSON *json);
+	MapTileReference(struct cJSON *json, TilemapTownClient *client);
 	MapTileReference(std::string str);
 	MapTileReference(std::string str, TilemapTownClient *client);
-	MapTileReference(MapTileInfo tile);
+	MapTileReference(MapTileInfo *tile, TilemapTownClient *client);
 	MapTileReference(std::shared_ptr<MapTileInfo> tile);
 };
 
@@ -122,6 +122,8 @@ struct Pic {
 	C2D_Image *get(TilemapTownClient *client);
 	C3D_Tex *get_texture(TilemapTownClient *client);
 	#endif
+
+	std::size_t hash();
 };
 
 class Entity {
@@ -170,6 +172,8 @@ struct MapTileInfo {
 	uint8_t walls;
 	bool obj;
 	enum MapTileType type;
+
+	std::size_t hash();
 };
 
 // ------------------------------------
@@ -208,6 +212,7 @@ public:
 	// Game state
 	TownMap town_map;
 	std::unordered_map<std::string, std::shared_ptr<MapTileInfo>> tileset;
+	std::unordered_map<std::size_t, std::weak_ptr<MapTileInfo>> json_tileset; // Custom JSON tiles, referenced by hash
 	std::unordered_map<std::string, Entity> who;
 	#ifdef __3DS__
 	std::unordered_map<std::string, LoadedTextureInfo> texture_for_url;
@@ -245,4 +250,5 @@ public:
 	// Utility
 	bool is_autotile_match(MapTileInfo *turf, int x, int y);
 	unsigned int get_autotile_index_4(MapTileInfo *turf, int x, int y);
+	std::shared_ptr<MapTileInfo> get_shared_pointer_to_tile(MapTileInfo *tile);
 };
