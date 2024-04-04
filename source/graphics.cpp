@@ -349,12 +349,11 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				continue;
 
 			int index = real_y * this->town_map.width + real_x;
-			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
-
-			// Draw turf
 			float draw_x = x*16-camera_offset_x;
 			float draw_y = y*16-camera_offset_y;
 
+			// Draw turf
+			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
 			if(turf) {
 				draw_atom_with_autotile(this, turf, real_x, real_y, draw_x, draw_y, false);
 			}
@@ -438,7 +437,6 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			int index = real_y * this->town_map.width + real_x;
 
 			// Draw objects
-
 			for(auto & element : this->town_map.cells[index].objs) {
 				MapTileInfo *obj = element.get(this);
 				if(!obj || !obj->over)
