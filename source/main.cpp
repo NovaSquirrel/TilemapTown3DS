@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
 			u32 kDown       = hidKeysDown();
 			u32 kDownRepeat = hidKeysDownRepeat();
 			if(kDown & KEY_B) {
-				printf("How many tiles: %d\n", client.tileset.size());
+				printf("How many tiles: %d %d\n", client.tileset.size(), client.json_tileset.size());
 			}
 			if(kDown & KEY_X) {
 				show_keyboard(&client);

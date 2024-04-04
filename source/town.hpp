@@ -248,7 +248,9 @@ public:
 	void move_player(int offset_x, int offset_y);
 
 	// Utility
-	bool is_autotile_match(MapTileInfo *turf, int x, int y);
-	unsigned int get_autotile_index_4(MapTileInfo *turf, int x, int y);
+	bool is_turf_autotile_match(MapTileInfo *turf, int x, int y);
+	bool is_obj_autotile_match(MapTileInfo *obj, int x, int y);
+	unsigned int get_turf_autotile_index_4(MapTileInfo *turf, int x, int y);
+	unsigned int get_obj_autotile_index_4(MapTileInfo *obj, int x, int y);
 	std::shared_ptr<MapTileInfo> get_shared_pointer_to_tile(MapTileInfo *tile);
 };
