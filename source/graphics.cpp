@@ -227,9 +227,9 @@ void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int r
 			const static int offset_1x[] = {-1, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1};
 			const static int offset_1y[] = {-4,-2,-2,-2, 2, 2, 2, 2,-2,-2,-2,-2, 0, 0, 0, 0};
 			const static int offset_2x[] = {-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0,-2, 2,-2, 0};
-			const static int offset_2y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1, 1,-1,-1, 1, 1, 1, 1};
+			const static int offset_2y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1,-1,-1,-1, 1, 1, 1, 1};
 			const static int offset_3x[] = {-1, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1, 3, 3,-1, 1};
-			const static int offset_3y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1, 1,-1,-1, 1, 1, 1, 1};
+			const static int offset_3y[] = {-3, 3, 3, 3, 3, 3, 3, 3,-1,-1,-1,-1, 1, 1, 1, 1};
 
 			int t0x = offset_0x[autotile_index], t0y = offset_0y[autotile_index];
 			int t1x = offset_1x[autotile_index], t1y = offset_1y[autotile_index];
