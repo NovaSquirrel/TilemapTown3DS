@@ -280,7 +280,15 @@ std::string Entity::apply_json(cJSON *json) {
 
 MapTileReference::MapTileReference(cJSON *json, TilemapTownClient *client) {
 	if(cJSON_IsString(json)) {
-		this->tile = std::string(json->valuestring);
+		// Attempt to look up the tile in the tilesets the client already has
+		auto it = client->tileset.find(json->valuestring);
+		if(it != client->tileset.end()) {
+			// If it's present, record a pointer to that tile instead of allocating a string
+			this->tile = (*it).second;
+		} else {
+			// If it's not present, hold onto the string until it can be turned into a tile later
+			this->tile = std::string(json->valuestring);
+		}
 	} else if(cJSON_IsObject(json)) {
 		MapTileInfo tile_info = MapTileInfo();
 		if(map_tile_from_json(json, &tile_info)) {

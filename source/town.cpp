@@ -55,10 +55,12 @@ std::shared_ptr<MapTileInfo> TilemapTownClient::get_shared_pointer_to_tile(MapTi
 }
 
 MapTileInfo* MapTileReference::get(TilemapTownClient *client) {
+	// If there's a pointer to the tile already, just return that tile
 	if(const auto ptr = std::get_if<std::shared_ptr<MapTileInfo>>(&this->tile)) {
 		return (*ptr).get();
 	}
 
+	// Is the tile available yet?
 	if(const auto str = std::get_if<std::string>(&this->tile)) {
 		// Is it in the client's tileset?
 		auto it = client->tileset.find(*str);
