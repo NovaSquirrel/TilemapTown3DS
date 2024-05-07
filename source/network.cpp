@@ -259,10 +259,16 @@ int TilemapTownClient::network_connect(std::string host, std::string path, std::
 	cJSON *json = cJSON_CreateObject();
 	cJSON *json_features = cJSON_CreateObject();
 	cJSON *json_features_batch = cJSON_CreateObject();
+	cJSON *json_features_bulk_build = cJSON_CreateObject();
 
 	cJSON_AddItemToObjectCS(json, "features", json_features);
+
 	cJSON_AddItemToObjectCS(json_features, "batch", json_features_batch);
 	cJSON_AddStringToObject(json_features_batch, "version", "0.0.1");
+
+	cJSON_AddItemToObjectCS(json_features, "bulk_build", json_features_bulk_build);
+	cJSON_AddStringToObject(json_features_bulk_build, "version", "0.0.1");
+
 	if(!guest_login && login_username[0] && login_password[0]) {
 		cJSON_AddStringToObject(json, "username", login_username);
 		cJSON_AddStringToObject(json, "password", login_password);
