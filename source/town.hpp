@@ -168,6 +168,10 @@ struct MapTileInfo {
 	bool over;        // Display on top of entities
 	uint8_t autotile_layout;
 
+	// Animation
+	uint8_t animation_frames, animation_speed, animation_mode;
+	int8_t animation_offset;
+
 	// Game logic related
 	uint8_t walls;
 	bool obj;

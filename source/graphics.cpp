@@ -190,13 +190,46 @@ void draw_atom_quadrant_with_pic_offset(TilemapTownClient *client, MapTileInfo *
 	}
 }
 
-void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int real_x, int real_y, float draw_x, float draw_y, bool obj) {
+void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int real_x, int real_y, float draw_x, float draw_y, bool obj, int tenth_of_second_counter) {
+	int animation_frame = 0;
+	if(atom->animation_frames > 1) {
+		int animation_frame_count = atom->animation_frames;
+		int animation_timer = tenth_of_second_counter + atom->animation_offset;
+		int animation_speed = atom->animation_speed;
+
+		switch(atom->animation_mode) {
+			case 0: // Forwards
+				animation_frame = animation_timer / animation_speed % animation_frame_count;
+				break;
+			case 1: // Backwards
+				animation_frame = animation_frame_count - 1 - (animation_timer / animation_speed % animation_frame_count);
+				break;
+			case 2: // Ping-pong forwards
+			case 3: // Ping-pong backwards
+			{
+				animation_frame_count--;
+				int sub_animation_frame = animation_timer / animation_speed % animation_frame_count;
+				bool is_backwards = (animation_timer / animation_speed / animation_frame_count) & 1;
+				if(is_backwards ^ (atom->animation_mode == 3)) {
+					animation_frame = animation_frame_count - sub_animation_frame;
+				} else {
+					animation_frame = sub_animation_frame;
+				}
+				break;
+			}
+		}
+	}
+
 	switch(atom->autotile_layout) {
 		case 0: // No autotiling
 		{
-			C2D_Image *image = atom->pic.get(client);
-			if(image) {
-				C2D_DrawImageAt(*image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+			if(animation_frame == 0) {
+				C2D_Image *image = atom->pic.get(client);
+				if(image) {
+					C2D_DrawImageAt(*image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+				}
+			} else {
+				draw_atom_with_pic_offset(client, atom, animation_frame, 0, draw_x, draw_y);
 			}
 			break;
 		}
@@ -205,7 +238,7 @@ void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int r
 			unsigned int autotile_index = obj ? client->get_obj_autotile_index_4(atom, real_x, real_y) : client->get_turf_autotile_index_4(atom, real_x, real_y);
 			const static int offset_x_list[] = {0,0,0,0,   0,1,-1,0,    0, 1,-1, 0,  0,1,-1,0};
 			const static int offset_y_list[] = {0,0,0,0,   0,1, 1,1,    0,-1,-1,-1,  0,0, 0,0};
-			draw_atom_with_pic_offset(client, atom, offset_x_list[autotile_index], offset_y_list[autotile_index], draw_x, draw_y);
+			draw_atom_with_pic_offset(client, atom, offset_x_list[autotile_index] + animation_frame * 3, offset_y_list[autotile_index], draw_x, draw_y);
 			break;
 		}
 		case 2: // 4-direction autotiling, 9 tiles, origin is middle, horizonal & vertical & single as separate tiles
@@ -215,7 +248,7 @@ void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int r
 			const static int offset_x_list[] = { 2,1,-1,0};
 			const static int offset_y_list[] = {-2,1,-1,0};
 			bool isThree = atom->autotile_layout == 3;
-			draw_atom_with_pic_offset(client, atom, offset_x_list[autotile_index&3] - (isThree?2:0), offset_y_list[autotile_index>>2] + (isThree?2:0), draw_x, draw_y);
+			draw_atom_with_pic_offset(client, atom, offset_x_list[autotile_index&3] - (isThree?2:0) + animation_frame * 4, offset_y_list[autotile_index>>2] + (isThree?2:0), draw_x, draw_y);
 			break;
 		}
 		case 4: // 8-direction autotiling, origin point is middle
@@ -261,10 +294,11 @@ void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int r
 			}
 
 			// Draw the four tiles
-			draw_atom_quadrant_with_pic_offset(client, atom, t0x, t0y, draw_x,   draw_y  );
-			draw_atom_quadrant_with_pic_offset(client, atom, t1x, t1y, draw_x+8, draw_y  );
-			draw_atom_quadrant_with_pic_offset(client, atom, t2x, t2y, draw_x,   draw_y+8);
-			draw_atom_quadrant_with_pic_offset(client, atom, t3x, t3y, draw_x+8, draw_y+8);
+			animation_frame *= 6;
+			draw_atom_quadrant_with_pic_offset(client, atom, t0x + animation_frame, t0y, draw_x,   draw_y  );
+			draw_atom_quadrant_with_pic_offset(client, atom, t1x + animation_frame, t1y, draw_x+8, draw_y  );
+			draw_atom_quadrant_with_pic_offset(client, atom, t2x + animation_frame, t2y, draw_x,   draw_y+8);
+			draw_atom_quadrant_with_pic_offset(client, atom, t3x + animation_frame, t3y, draw_x+8, draw_y+8);
 			break;
 		}
 	}
@@ -334,7 +368,8 @@ unsigned int TilemapTownClient::get_obj_autotile_index_4(MapTileInfo *turf, int 
 void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 	if(!this->map_received)
 		return;
-	this->animation_tick = (this->animation_tick+1) % 60000;
+	int tenth_of_second_counter = this->animation_tick / 6;
+	this->animation_tick = (this->animation_tick+1) % 600000000;
 
 	int camera_offset_x = camera_x % 16;
 	int camera_offset_y = camera_y % 16;
@@ -355,7 +390,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 			// Draw turf
 			MapTileInfo *turf = this->town_map.cells[index].turf.get(this);
 			if(turf) {
-				draw_atom_with_autotile(this, turf, real_x, real_y, draw_x, draw_y, false);
+				draw_atom_with_autotile(this, turf, real_x, real_y, draw_x, draw_y, false, tenth_of_second_counter);
 			}
 
 			// Draw objects
@@ -363,7 +398,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				MapTileInfo *obj = element.get(this);
 				if(!obj || obj->over)
 					continue;
-				draw_atom_with_autotile(this, obj, real_x, real_y, draw_x, draw_y, true);
+				draw_atom_with_autotile(this, obj, real_x, real_y, draw_x, draw_y, true, tenth_of_second_counter);
 			}
 		}
 	}
@@ -401,7 +436,6 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				C2D_DrawImageAt(new_image, (entity->x*16)-camera_x+entity->offset_x, (entity->y*16)-camera_y+entity->offset_y, 0, NULL, 1.0f, -1.0f);
 			} else if(string_is_http_url(entity->pic.key)) {
 				int frame_x = 0, frame_y = 0;
-				int frame_count_from_animation_tick = this->animation_tick / 6;
 				bool is_walking = entity->walk_timer != 0;
 
 				switch(tileset_height / 32) { // Directions
@@ -411,9 +445,9 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				}
 				switch(tileset_width / 32) { // Frames per direction
 					case 2: frame_x = (is_walking * 1); break;
-					case 4: frame_x = (is_walking * 2) + (frame_count_from_animation_tick & 1); break;
-					case 6: frame_x = (is_walking * 3) + (frame_count_from_animation_tick % 3); break;
-					case 8: frame_x = (is_walking * 4) + (frame_count_from_animation_tick & 3); break;
+					case 4: frame_x = (is_walking * 2) + (tenth_of_second_counter & 1); break;
+					case 6: frame_x = (is_walking * 3) + (tenth_of_second_counter % 3); break;
+					case 8: frame_x = (is_walking * 4) + (tenth_of_second_counter & 3); break;
 				}
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 32, 32, frame_x, frame_y);
@@ -441,7 +475,7 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				MapTileInfo *obj = element.get(this);
 				if(!obj || !obj->over)
 					continue;
-				draw_atom_with_autotile(this, obj, real_x, real_y, x*16-camera_offset_x, y*16-camera_offset_y, true);
+				draw_atom_with_autotile(this, obj, real_x, real_y, x*16-camera_offset_x, y*16-camera_offset_y, true, tenth_of_second_counter);
 			}
 		}
 	}

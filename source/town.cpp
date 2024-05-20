@@ -111,6 +111,7 @@ std::size_t hash_combine(std::size_t a, std::size_t b) {
 std::size_t MapTileInfo::hash() {
 	std::hash<uint32_t> uint32_hash;
 	std::hash<uint8_t> uint8_hash;
+	std::hash<int8_t> int8_hash;
 	std::hash<std::string> str_hash;
 	std::hash<bool> bool_hash;
 
@@ -124,6 +125,10 @@ std::size_t MapTileInfo::hash() {
 	hash = hash_combine(hash, uint8_hash(this->walls));
 	hash = hash_combine(hash, bool_hash(this->obj));
 	hash = hash_combine(hash, uint8_hash(this->type));
+	hash = hash_combine(hash, uint8_hash(this->animation_frames));
+	hash = hash_combine(hash, uint8_hash(this->animation_speed));
+	hash = hash_combine(hash, uint8_hash(this->animation_mode));
+	hash = hash_combine(hash, int8_hash(this->animation_offset));
 	return hash;
 }
 

@@ -200,6 +200,10 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 	cJSON *i_over    = get_json_item(json, "over");
 	cJSON *i_autotile_layout = get_json_item(json, "autotile_layout");
 	cJSON *i_autotile_class  = get_json_item(json, "autotile_class");
+	cJSON *i_anim_frames = get_json_item(json, "anim_frames");
+	cJSON *i_anim_speed  = get_json_item(json, "anim_speed");
+	cJSON *i_anim_mode   = get_json_item(json, "anim_mode");
+	cJSON *i_anim_offset = get_json_item(json, "anim_offset");
 
 	if(!pic_from_json(i_pic, &out->pic)) {
 		return 0;
@@ -218,11 +222,19 @@ int map_tile_from_json(cJSON *json, MapTileInfo *out) {
 		out->type = !strcmp(s_type, "sign") ? MAP_TILE_SIGN : MAP_TILE_NONE;
 
 	// Autotile information
-	if(i_autotile_layout)
+	if(cJSON_IsNumber(i_autotile_layout))
 		out->autotile_layout = i_autotile_layout->valueint;
 	const char *s_autotile_class = cJSON_GetStringValue(i_autotile_class);
 	if(s_autotile_class)
 		out->autotile_class = town_crc32(s_autotile_class, strlen(s_autotile_class));
+
+	// Animation
+	out->animation_frames = cJSON_IsNumber(i_anim_frames) ? i_anim_frames->valueint : 1;
+	out->animation_speed  = cJSON_IsNumber(i_anim_speed)  ? i_anim_speed->valueint  : 1;
+	out->animation_mode   = cJSON_IsNumber(i_anim_mode)   ? i_anim_mode->valueint   : 0;
+	out->animation_offset = cJSON_IsNumber(i_anim_offset) ? i_anim_offset->valueint : 0;
+	if(out->animation_speed < 1)
+		out->animation_speed = 1;
 
 	// Optional message field, for signs
 	const char *s_message = cJSON_GetStringValue(i_message);
