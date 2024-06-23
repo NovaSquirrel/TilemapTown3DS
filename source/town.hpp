@@ -104,7 +104,17 @@ public:
 struct LoadedTextureInfo {
 	int original_width;  // Width of the source image, rather than the texture
 	int original_height;
-	C3D_Tex* texture;
+	#ifdef __3DS__
+	#define MULTI_TEXTURE_CELL_WIDTH 512
+	#define MULTI_TEXTURE_CELL_HEIGHT 512
+	#define MULTI_TEXTURE_CELL_WIDTH_IN_TILES (512/16)
+	#define MULTI_TEXTURE_CELL_HEIGHT_IN_TILES (512/16)
+	#define MULTI_TEXTURE_COLUMNS 4
+	#define MULTI_TEXTURE_ROWS 4
+	C3D_Tex* texture[MULTI_TEXTURE_COLUMNS][MULTI_TEXTURE_ROWS];
+
+	bool image_for_xy(C2D_Image *image, Tex3DS_SubTexture *subtexture, int tile_x, int tile_y, bool quadrant);
+	#endif
 };
 
 struct Pic {
@@ -117,10 +127,10 @@ struct Pic {
 	#ifdef __3DS__
 	Tex3DS_SubTexture subtexture;
 	C2D_Image image;               // Texture and subtexture
-	LoadedTextureInfo *extra_info; // Can use this to get the original size
+	LoadedTextureInfo *extra_info; // Can use this to get the original size, or the other textures this PNG was turned into
 
 	C2D_Image *get(TilemapTownClient *client);
-	C3D_Tex *get_texture(TilemapTownClient *client);
+	LoadedTextureInfo *get_texture(TilemapTownClient *client);
 	#endif
 
 	std::size_t hash();

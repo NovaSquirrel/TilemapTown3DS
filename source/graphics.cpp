@@ -75,7 +75,13 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 	// Prepare a place to put the decoded PNG, and decode it
 
-	C3D_TexInit(tex, next_power_of_two(image.width), next_power_of_two(image.height), GPU_RGBA8);
+	bool texinit_result = C3D_TexInit(tex, next_power_of_two(image.width), next_power_of_two(image.height), GPU_RGBA8);
+	if (!texinit_result) {
+		puts("C3D_TexInit failed");
+		C3D_TexDelete(tex);		
+		return;
+	}
+
 	linear_pixels   = (u32*)linearAlloc(tex->width * tex->height * sizeof(u32));
 	swizzled_pixels = (u32*)linearAlloc(tex->width * tex->height * sizeof(u32));
 	size_t stride = tex->width * sizeof(u32);
@@ -112,10 +118,10 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	linearFree(linear_pixels);
 	linearFree(swizzled_pixels);
 
-	LoadedTextureInfo loaded_texture_info;
+	LoadedTextureInfo loaded_texture_info = {};
 	loaded_texture_info.original_width  = image.width;
 	loaded_texture_info.original_height = image.height;
-	loaded_texture_info.texture = tex;
+	loaded_texture_info.texture[0][0] = tex;
 
 	client->texture_for_url[std::string(url)] = loaded_texture_info;
 	client->need_redraw = true;
@@ -126,9 +132,32 @@ bool string_is_http_url(std::string &url) {
 	return url.starts_with("https://") || url.starts_with("http://");
 }
 
-C3D_Tex* Pic::get_texture(TilemapTownClient *client) {
+bool LoadedTextureInfo::image_for_xy(C2D_Image *image, Tex3DS_SubTexture *subtexture, int tile_x, int tile_y, bool quadrant) {
+	int tile_x_16 = quadrant ? tile_x*2 : tile_x;
+	int tile_y_16 = quadrant ? tile_y*2 : tile_y;
+	int multi_texture_x = tile_x_16 / MULTI_TEXTURE_CELL_WIDTH_IN_TILES;
+	int multi_texture_y = tile_y_16 / MULTI_TEXTURE_CELL_HEIGHT_IN_TILES;
+
+	if(multi_texture_x < 0 || multi_texture_x >= MULTI_TEXTURE_COLUMNS || multi_texture_y < 0 || multi_texture_y >= MULTI_TEXTURE_ROWS)
+		return false;
+	C3D_Tex *texture = this->texture[multi_texture_x][multi_texture_y];
+	if(!texture)
+		return false;
+	image->tex = texture;
+
+	if(quadrant) {
+		*subtexture = calc_subtexture(texture->width, texture->height, 8,  8,  tile_x - (multi_texture_x * MULTI_TEXTURE_CELL_WIDTH_IN_TILES * 2), tile_y - (multi_texture_y * MULTI_TEXTURE_CELL_HEIGHT_IN_TILES*2));
+		image->subtex = subtexture;
+	} else {
+		*subtexture = calc_subtexture(texture->width, texture->height, 16, 16, tile_x - multi_texture_x * MULTI_TEXTURE_CELL_WIDTH_IN_TILES, tile_y - multi_texture_y * MULTI_TEXTURE_CELL_HEIGHT_IN_TILES);
+		image->subtex = subtexture;
+	}
+	return true;
+}
+
+LoadedTextureInfo* Pic::get_texture(TilemapTownClient *client) {
 	if(this->ready_to_draw) {
-		return this->image.tex;
+		return this->extra_info;
 	}
 
 	// Try to turn a key into a URL if needed
@@ -147,12 +176,10 @@ C3D_Tex* Pic::get_texture(TilemapTownClient *client) {
 	auto it = client->texture_for_url.find(*real_url);
 	if(it != client->texture_for_url.end()) {
 		this->ready_to_draw = true;
-		C3D_Tex *tex = (*it).second.texture;
-
 		this->extra_info = &(*it).second; // Save this so we can get the original size later
-		this->subtexture = calc_subtexture(tex->width, tex->height, 16, 16, this->x, this->y);
-		this->image = {tex, &this->subtexture}; // Record the C2D_Image so Pic::get() can have it
-		return tex;
+		this->extra_info->image_for_xy(&this->image, &this->subtexture, this->x, this->y, false);
+		// ^ Records the C2D_Image so Pic::get() can have it
+		return this->extra_info;
 	} else {
 		client->http.get(*real_url, http_png_callback, nullptr);
 		return nullptr;
@@ -173,21 +200,29 @@ bool sort_entity_by_y_pos(Entity *a, Entity *b) {
 }
 
 void draw_atom_with_pic_offset(TilemapTownClient *client, MapTileInfo *turf, int offset_x, int offset_y, float draw_x, float draw_y) {
-	C2D_Image *image = turf->pic.get(client);
-	if(image) {
-		Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 16, 16, turf->pic.x + offset_x, turf->pic.y + offset_y);
-		C2D_Image new_image = {image->tex, &subtexture};
-		C2D_DrawImageAt(new_image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
-	}
+	LoadedTextureInfo *texture_info = turf->pic.get_texture(client);
+	if(!texture_info)
+		return;
+
+	C2D_Image image;
+	Tex3DS_SubTexture subtexture;
+	bool result = texture_info->image_for_xy(&image, &subtexture, turf->pic.x + offset_x, turf->pic.y + offset_y, false);
+	if(!result)
+		return;
+	C2D_DrawImageAt(image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
 }
 
 void draw_atom_quadrant_with_pic_offset(TilemapTownClient *client, MapTileInfo *turf, int offset_x, int offset_y, float draw_x, float draw_y) {
-	C2D_Image *image = turf->pic.get(client);
-	if(image) {
-		Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 8, 8, turf->pic.x*2 + offset_x, turf->pic.y*2 + offset_y);
-		C2D_Image new_image = {image->tex, &subtexture};
-		C2D_DrawImageAt(new_image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
-	}
+	LoadedTextureInfo *texture_info = turf->pic.get_texture(client);
+	if(!texture_info)
+		return;
+
+	C2D_Image image;
+	Tex3DS_SubTexture subtexture;
+	bool result = texture_info->image_for_xy(&image, &subtexture, turf->pic.x*2 + offset_x, turf->pic.y*2 + offset_y, true);
+	if(!result)
+		return;
+	C2D_DrawImageAt(image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
 }
 
 void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int real_x, int real_y, float draw_x, float draw_y, bool obj, int tenth_of_second_counter) {
