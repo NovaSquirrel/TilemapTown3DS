@@ -64,7 +64,6 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 	png_image image;
 	u32 *linear_pixels, *swizzled_pixels;
-	C3D_Tex* tex = (C3D_Tex*)linearAlloc(sizeof(C3D_Tex));
 
 	memset(&image, 0, sizeof(image));
 	image.version = PNG_IMAGE_VERSION;
@@ -73,58 +72,98 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 	image.format = PNG_FORMAT_ABGR;
 
-	// Prepare a place to put the decoded PNG, and decode it
-
-	bool texinit_result = C3D_TexInit(tex, next_power_of_two(image.width), next_power_of_two(image.height), GPU_RGBA8);
-	if (!texinit_result) {
-		puts("C3D_TexInit failed");
-		C3D_TexDelete(tex);		
-		return;
-	}
-
-	linear_pixels   = (u32*)linearAlloc(tex->width * tex->height * sizeof(u32));
-	swizzled_pixels = (u32*)linearAlloc(tex->width * tex->height * sizeof(u32));
-	size_t stride = tex->width * sizeof(u32);
-
-	if(!png_image_finish_read(&image, NULL, linear_pixels, stride, NULL)) {
-		linearFree(linear_pixels);
-		linearFree(swizzled_pixels);
-		C3D_TexDelete(tex);
-		return;
-	}
-
-	// Swizzle the texture
-	memset(swizzled_pixels, 0xff, tex->width * tex->height * sizeof(u32));
-
-	u32 *sw = swizzled_pixels;
-	for(size_t ty = 0; ty < tex->height/8; ty++) {
-		for(size_t tx = 0; tx < tex->width/8; tx++) {
-			for(size_t px =0; px<64; px++) {
-				u8 from_table = swizzle_lut[px];
-				u8 table_x = from_table & 7;
-				u8 table_y = (from_table >> 3) & 7;
-
-				*sw = linear_pixels[(tex->height-1-(ty*8+table_y))*(tex->width) + (tx*8+table_x)];
-				sw++;
-			}
-		}
-	}
-
-	C3D_TexUpload(tex, swizzled_pixels);
-	C3D_TexSetFilter(tex, GPU_LINEAR, GPU_NEAREST);
-	C3D_TexSetWrap(tex, GPU_REPEAT, GPU_REPEAT);
-	C3D_TexBind(0, tex);
-
-	linearFree(linear_pixels);
-	linearFree(swizzled_pixels);
-
 	LoadedTextureInfo loaded_texture_info = {};
 	loaded_texture_info.original_width  = image.width;
 	loaded_texture_info.original_height = image.height;
-	loaded_texture_info.texture[0][0] = tex;
+
+	///////////////////////////////////////////////////////
+	// Is the image too big??
+	///////////////////////////////////////////////////////
+
+	bool partial_texture_on_end_x = (image.width  % MULTI_TEXTURE_CELL_WIDTH > 0);
+	bool partial_texture_on_end_y = (image.height % MULTI_TEXTURE_CELL_HEIGHT > 0);
+	int multi_texture_width  = image.width  / MULTI_TEXTURE_CELL_WIDTH  + partial_texture_on_end_x;
+	int multi_texture_height = image.height / MULTI_TEXTURE_CELL_HEIGHT + partial_texture_on_end_y;
+
+	if(multi_texture_width > MULTI_TEXTURE_COLUMNS || multi_texture_height > MULTI_TEXTURE_ROWS) {
+		printf("Texture is too big!! %s %d*%d\n", url, image.width, image.height);
+		return;
+	}
+
+	///////////////////////////////////////////////////////
+	// Read in the image
+	///////////////////////////////////////////////////////
+
+	// From https://stackoverflow.com/a/9194117
+	int rounded_up_width = next_power_of_two(image.width);
+	int rounded_up_height = next_power_of_two(image.height);
+	size_t stride = rounded_up_width * sizeof(u32);
+	linear_pixels = (u32*)linearAlloc(stride * rounded_up_height);
+
+	if(!png_image_finish_read(&image, NULL, linear_pixels, stride, NULL)) {
+		linearFree(linear_pixels);
+		return;
+	}
+
+	// Make it big enough for the biggest possible texture
+	swizzled_pixels = (u32*)linearAlloc(MULTI_TEXTURE_CELL_WIDTH * MULTI_TEXTURE_CELL_HEIGHT * sizeof(u32));
+
+	///////////////////////////////////////////////////////
+	// Create the textures
+	///////////////////////////////////////////////////////
+
+	puts(url);
+	for(int x=0; x<multi_texture_width; x++) {
+		for(int y=0; y<multi_texture_height; y++) {
+			bool end_x = partial_texture_on_end_x && (x == multi_texture_width-1);
+			bool end_y = false; //partial_texture_on_end_y && (y == multi_texture_height-1);
+			size_t texture_width  = end_x ? next_power_of_two(image.width  % MULTI_TEXTURE_CELL_WIDTH)  : MULTI_TEXTURE_CELL_WIDTH;
+			size_t texture_height = end_y ? next_power_of_two(image.height % MULTI_TEXTURE_CELL_HEIGHT) : MULTI_TEXTURE_CELL_HEIGHT;
+
+			C3D_Tex* tex = (C3D_Tex*)linearAlloc(sizeof(C3D_Tex));
+			if (!C3D_TexInit(tex, texture_width, texture_height, GPU_RGBA8)) {
+				printf("C3D_TexInit failed %s %d %d\n", url, texture_width, texture_height);
+				C3D_TexDelete(tex);
+
+				// TODO: Attempt to clean up everything allocated so far?? Not sure this can actually fail though.
+				return;
+			}
+			loaded_texture_info.texture[x][y] = tex;
+
+			// Swizzle the pixels that will go into this texture
+			memset(swizzled_pixels, 0xff, MULTI_TEXTURE_CELL_WIDTH * MULTI_TEXTURE_CELL_HEIGHT * sizeof(u32)); // Is this necessary?
+
+			int base_x = x * MULTI_TEXTURE_CELL_WIDTH;
+			int base_y = (multi_texture_height-y-1) * MULTI_TEXTURE_CELL_HEIGHT;
+			u32 *sw = swizzled_pixels;
+			for(size_t ty = 0; ty < texture_height/8; ty++) {
+				for(size_t tx = 0; tx < texture_width/8; tx++) {
+					for(size_t px =0; px<64; px++) {
+						u8 from_table = swizzle_lut[px];
+						u8 table_x = from_table & 7;
+						u8 table_y = (from_table >> 3) & 7;
+
+						int x_from_image = tx*8 + table_x + base_x;
+						int y_from_image = rounded_up_height-1 - (ty*8 + table_y + base_y); // <-- figure out what's going on here
+						*(sw++) = linear_pixels[y_from_image*rounded_up_width + x_from_image];
+					}
+				}
+			}
+
+			C3D_TexUpload(tex, swizzled_pixels);
+			C3D_TexSetFilter(tex, GPU_LINEAR, GPU_NEAREST);
+			C3D_TexSetWrap(tex, GPU_REPEAT, GPU_REPEAT);
+			C3D_TexBind(0, tex);
+		}
+	}
+
+	// Clean up
+	linearFree(swizzled_pixels);
+	linearFree(linear_pixels);
 
 	client->texture_for_url[std::string(url)] = loaded_texture_info;
 	client->need_redraw = true;
+
 	//puts("Finished decoding texture");
 }
 
@@ -138,11 +177,15 @@ bool LoadedTextureInfo::image_for_xy(C2D_Image *image, Tex3DS_SubTexture *subtex
 	int multi_texture_x = tile_x_16 / MULTI_TEXTURE_CELL_WIDTH_IN_TILES;
 	int multi_texture_y = tile_y_16 / MULTI_TEXTURE_CELL_HEIGHT_IN_TILES;
 
-	if(multi_texture_x < 0 || multi_texture_x >= MULTI_TEXTURE_COLUMNS || multi_texture_y < 0 || multi_texture_y >= MULTI_TEXTURE_ROWS)
+	if(multi_texture_x < 0 || multi_texture_x >= MULTI_TEXTURE_COLUMNS || multi_texture_y < 0 || multi_texture_y >= MULTI_TEXTURE_ROWS) {
+		puts("Error in image_for_xy !");
 		return false;
+	}
 	C3D_Tex *texture = this->texture[multi_texture_x][multi_texture_y];
-	if(!texture)
+	if(!texture) {
+		printf("Error in image_for_xy %d %d\n", multi_texture_x, multi_texture_y);
 		return false;
+	}
 	image->tex = texture;
 
 	if(quadrant) {
