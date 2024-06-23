@@ -112,13 +112,13 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	// Create the textures
 	///////////////////////////////////////////////////////
 
-	puts(url);
 	for(int x=0; x<multi_texture_width; x++) {
 		for(int y=0; y<multi_texture_height; y++) {
 			bool end_x = partial_texture_on_end_x && (x == multi_texture_width-1);
 			bool end_y = false; //partial_texture_on_end_y && (y == multi_texture_height-1);
 			size_t texture_width  = end_x ? next_power_of_two(image.width  % MULTI_TEXTURE_CELL_WIDTH)  : MULTI_TEXTURE_CELL_WIDTH;
 			size_t texture_height = end_y ? next_power_of_two(image.height % MULTI_TEXTURE_CELL_HEIGHT) : MULTI_TEXTURE_CELL_HEIGHT;
+			printf("m %d %d|%d %d|%d %d\n", x, y, end_x, end_y, texture_width, texture_height);
 
 			C3D_Tex* tex = (C3D_Tex*)linearAlloc(sizeof(C3D_Tex));
 			if (!C3D_TexInit(tex, texture_width, texture_height, GPU_RGBA8)) {
@@ -135,6 +135,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 
 			int base_x = x * MULTI_TEXTURE_CELL_WIDTH;
 			int base_y = (multi_texture_height-y-1) * MULTI_TEXTURE_CELL_HEIGHT;
+			printf("base %d %d\n", base_x, base_y);
 			u32 *sw = swizzled_pixels;
 			for(size_t ty = 0; ty < texture_height/8; ty++) {
 				for(size_t tx = 0; tx < texture_width/8; tx++) {
