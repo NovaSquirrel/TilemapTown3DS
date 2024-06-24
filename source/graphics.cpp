@@ -134,7 +134,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 			memset(swizzled_pixels, 0xff, MULTI_TEXTURE_CELL_WIDTH * MULTI_TEXTURE_CELL_HEIGHT * sizeof(u32)); // Is this necessary?
 
 			int base_x = x * MULTI_TEXTURE_CELL_WIDTH;
-			int base_y = (multi_texture_height-y-1) * MULTI_TEXTURE_CELL_HEIGHT;
+			int base_y = (multi_texture_height-y-1) * MULTI_TEXTURE_CELL_HEIGHT; // base_y is upside-down because the final texture will be upside-down
 			printf("base %d %d\n", base_x, base_y);
 			u32 *sw = swizzled_pixels;
 			for(size_t ty = 0; ty < texture_height/8; ty++) {
@@ -145,7 +145,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 						u8 table_y = (from_table >> 3) & 7;
 
 						int x_from_image = tx*8 + table_x + base_x;
-						int y_from_image = rounded_up_height-1 - (ty*8 + table_y + base_y); // <-- figure out what's going on here
+						int y_from_image = rounded_up_height-1 - (ty*8 + table_y + base_y); // start from the bottom row, up towards the top
 						*(sw++) = linear_pixels[y_from_image*rounded_up_width + x_from_image];
 					}
 				}
