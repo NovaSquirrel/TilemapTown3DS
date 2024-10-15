@@ -1,7 +1,7 @@
 /*
  * Tilemap Town client for 3DS
  *
- * Copyright (C) 2023 NovaSquirrel
+ * Copyright (C) 2023-2024 NovaSquirrel
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -25,12 +25,12 @@ Tex3DS_SubTexture calc_subtexture(int width, int height, int tile_width, int til
 	out.width  = tile_width;
 	out.height = tile_height;
 
-	float one_x = (width / tile_width);
-	float one_y = (height / tile_height);
-	out.left   = (float)(tile_x+0)/one_x;
-	out.bottom = (float)(tile_y+0)/one_y;
-	out.right  = (float)(tile_x+1)/one_x;
-	out.top    = (float)(tile_y+1)/one_y;
+	float one_tile_x = (width / tile_width);
+	float one_tile_y = (height / tile_height);
+	out.left   = (float)(tile_x+0)/one_tile_x;
+	out.bottom = (float)(tile_y+0)/one_tile_y;
+	out.right  = (float)(tile_x+1)/one_tile_x;
+	out.top    = (float)(tile_y+1)/one_tile_y;
 	return out;
 }
 
@@ -94,7 +94,6 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	// Read in the image
 	///////////////////////////////////////////////////////
 
-	// From https://stackoverflow.com/a/9194117
 	int rounded_up_width = next_power_of_two(image.width);
 	int rounded_up_height = next_power_of_two(image.height);
 	size_t stride = rounded_up_width * sizeof(u32);
@@ -115,7 +114,7 @@ void http_png_callback(const char *url, uint8_t *memory, size_t size, TilemapTow
 	for(int x=0; x<multi_texture_width; x++) {
 		for(int y=0; y<multi_texture_height; y++) {
 			bool end_x = partial_texture_on_end_x && (x == multi_texture_width-1);
-			bool end_y = false; //partial_texture_on_end_y && (y == multi_texture_height-1);
+			bool end_y = y == 0 && (rounded_up_height < MULTI_TEXTURE_CELL_HEIGHT); //partial_texture_on_end_y && (y == multi_texture_height-1);
 			size_t texture_width  = end_x ? next_power_of_two(image.width  % MULTI_TEXTURE_CELL_WIDTH)  : MULTI_TEXTURE_CELL_WIDTH;
 			size_t texture_height = end_y ? next_power_of_two(image.height % MULTI_TEXTURE_CELL_HEIGHT) : MULTI_TEXTURE_CELL_HEIGHT;
 
