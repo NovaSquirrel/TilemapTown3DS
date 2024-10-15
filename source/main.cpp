@@ -1,7 +1,7 @@
 /*
  * Tilemap Town client for 3DS
  *
- * Copyright (C) 2023 NovaSquirrel
+ * Copyright (C) 2023-2024 NovaSquirrel
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -54,6 +54,7 @@ int main(int argc, char* argv[]) {
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
 	consoleInit(GFX_BOTTOM, NULL);
+	hidSetRepeatParameters(20, 10);
 
 	C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	bool want_to_exit = false;
@@ -86,7 +87,7 @@ int main(int argc, char* argv[]) {
 
 			client.network_update();
 			
-			//u32 kHeld       = hidKeysHeld();
+			u32 kHeld       = hidKeysHeld();
 			u32 kDown       = hidKeysDown();
 			u32 kDownRepeat = hidKeysDownRepeat();
 			if(kDown & KEY_B) {
@@ -95,6 +96,8 @@ int main(int argc, char* argv[]) {
 			if(kDown & KEY_X) {
 				show_keyboard(&client);
 			}
+
+			client.walk_through_walls = (kHeld & KEY_Y); // Temporary
 
 			if(kDownRepeat & KEY_LEFT)  client.move_player(-1,  0);
 			if(kDownRepeat & KEY_DOWN)  client.move_player( 0,  1);

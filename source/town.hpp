@@ -1,7 +1,7 @@
 /*
  * Tilemap Town client for 3DS
  *
- * Copyright (C) 2023 NovaSquirrel
+ * Copyright (C) 2023-2024 NovaSquirrel
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -244,7 +244,7 @@ public:
 	float camera_x;
 	float camera_y;
 
-	bool fly;
+	bool walk_through_walls;
 
 	void websocket_write(std::string text);
 	void websocket_write(std::string command, cJSON *json);

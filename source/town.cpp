@@ -245,53 +245,18 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 	you->x = new_x;
 	you->y = new_y;
 
-	////////////////////////////
-	// Check old tile for walls
-	////////////////////////////
-	MapCell *cell = &this->town_map.cells[original_y * this->town_map.width + original_x];
+	if(!this->walk_through_walls) {
+		////////////////////////////
+		// Check old tile for walls
+		////////////////////////////
+		MapCell *cell = &this->town_map.cells[original_y * this->town_map.width + original_x];
 
-	MapTileInfo *turf = cell->turf.get(this);
-	if(turf && (turf->walls & (1 << new_direction))) {
-		// Go back
-		bumped = true;
-		bumped_x = original_x;
-		bumped_y = original_y;
-		you->x = original_x;
-		you->y = original_y;
-	}
-
-	for(auto & obj_reference : cell->objs) {
-		MapTileInfo *obj = obj_reference.get(this);
-		if(!obj)
-			continue;
-		if(obj->walls & (1 << new_direction)) {
-			if(!bumped) {
-				bumped = true;
-				bumped_x = original_x;
-				bumped_y = original_y;
-			}
-			// Go back
-			you->x = original_x;
-			you->y = original_y;
-		}
-	}
-
-	////////////////////////////
-	// Check new tile for walls
-	////////////////////////////
-	if (!bumped) {
-		int dense_wall_bit = 1 << ((new_direction + 4) & 7); // For the new cell, the direction to check is rotated 180 degrees
-		cell = &this->town_map.cells[new_y * this->town_map.width + new_x];
-
-		turf = cell->turf.get(this);
-		if(turf && turf->type == MAP_TILE_SIGN) {
-			printf("\x1b[35m%s says: %s\x1b[0m\n", (turf->name=="sign" || turf->name.empty()) ? "The sign" : turf->name.c_str(), turf->message.c_str());
-		}
-		if(turf && (turf->walls & dense_wall_bit)) {
+		MapTileInfo *turf = cell->turf.get(this);
+		if(turf && (turf->walls & (1 << new_direction))) {
 			// Go back
 			bumped = true;
-			bumped_x = you->x;
-			bumped_y = you->y;
+			bumped_x = original_x;
+			bumped_y = original_y;
 			you->x = original_x;
 			you->y = original_y;
 		}
@@ -300,18 +265,55 @@ void TilemapTownClient::move_player(int offset_x, int offset_y) {
 			MapTileInfo *obj = obj_reference.get(this);
 			if(!obj)
 				continue;
-			if(obj->type == MAP_TILE_SIGN) {
-				printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign" || obj->name.empty()) ? "The sign" : obj->name.c_str(), obj->message.c_str());
-			}
-			if(obj->walls & dense_wall_bit) {
+			if(obj->walls & (1 << new_direction)) {
 				if(!bumped) {
 					bumped = true;
-					bumped_x = you->x;
-					bumped_y = you->y;
+					bumped_x = original_x;
+					bumped_y = original_y;
 				}
 				// Go back
 				you->x = original_x;
 				you->y = original_y;
+			}
+		}
+
+		////////////////////////////
+		// Check new tile for walls
+		////////////////////////////
+		if (!bumped) {
+			int dense_wall_bit = 1 << ((new_direction + 4) & 7); // For the new cell, the direction to check is rotated 180 degrees
+			cell = &this->town_map.cells[new_y * this->town_map.width + new_x];
+
+			turf = cell->turf.get(this);
+			if(turf && turf->type == MAP_TILE_SIGN) {
+				printf("\x1b[35m%s says: %s\x1b[0m\n", (turf->name=="sign" || turf->name.empty()) ? "The sign" : turf->name.c_str(), turf->message.c_str());
+			}
+			if(turf && (turf->walls & dense_wall_bit)) {
+				// Go back
+				bumped = true;
+				bumped_x = you->x;
+				bumped_y = you->y;
+				you->x = original_x;
+				you->y = original_y;
+			}
+
+			for(auto & obj_reference : cell->objs) {
+				MapTileInfo *obj = obj_reference.get(this);
+				if(!obj)
+					continue;
+				if(obj->type == MAP_TILE_SIGN) {
+					printf("\x1b[35m%s says: %s\x1b[0m\n", (obj->name=="sign" || obj->name.empty()) ? "The sign" : obj->name.c_str(), obj->message.c_str());
+				}
+				if(obj->walls & dense_wall_bit) {
+					if(!bumped) {
+						bumped = true;
+						bumped_x = you->x;
+						bumped_y = you->y;
+					}
+					// Go back
+					you->x = original_x;
+					you->y = original_y;
+				}
 			}
 		}
 	}
