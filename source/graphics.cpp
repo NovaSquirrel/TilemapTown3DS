@@ -170,8 +170,8 @@ bool string_is_http_url(std::string &url) {
 }
 
 bool LoadedTextureInfo::image_for_xy(C2D_Image *image, Tex3DS_SubTexture *subtexture, int tile_x, int tile_y, bool quadrant) {
-	int tile_x_16 = quadrant ? tile_x*2 : tile_x;
-	int tile_y_16 = quadrant ? tile_y*2 : tile_y;
+	int tile_x_16 = quadrant ? tile_x/2 : tile_x;
+	int tile_y_16 = quadrant ? tile_y/2 : tile_y;
 	int multi_texture_x = tile_x_16 / MULTI_TEXTURE_CELL_WIDTH_IN_TILES;
 	int multi_texture_y = tile_y_16 / MULTI_TEXTURE_CELL_HEIGHT_IN_TILES;
 
@@ -181,7 +181,7 @@ bool LoadedTextureInfo::image_for_xy(C2D_Image *image, Tex3DS_SubTexture *subtex
 	}
 	C3D_Tex *texture = this->texture[multi_texture_x][multi_texture_y];
 	if(!texture) {
-		printf("Error in image_for_xy %d %d\n", multi_texture_x, multi_texture_y);
+		printf("Error in image_for_xy %d %d --> %d %d\n", tile_x_16, tile_y_16, multi_texture_x, multi_texture_y);
 		return false;
 	}
 	image->tex = texture;
