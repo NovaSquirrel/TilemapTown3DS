@@ -521,9 +521,9 @@ void TilemapTownClient::draw_map(int camera_x, int camera_y) {
 				}
 				switch(tileset_width / 32) { // Frames per direction
 					case 2: frame_x = (is_walking * 1); break;
-					case 4: frame_x = (is_walking * 2) + (tenth_of_second_counter & 1); break;
-					case 6: frame_x = (is_walking * 3) + (tenth_of_second_counter % 3); break;
-					case 8: frame_x = (is_walking * 4) + (tenth_of_second_counter & 3); break;
+					case 4: frame_x = (is_walking * 2) + ((tenth_of_second_counter/2) & 1); break;
+					case 6: frame_x = (is_walking * 3) + ((tenth_of_second_counter/2) % 3); break;
+					case 8: frame_x = (is_walking * 4) + ((tenth_of_second_counter/2) & 3); break;
 				}
 
 				Tex3DS_SubTexture subtexture = calc_subtexture(image->tex->width, image->tex->height, 32, 32, frame_x, frame_y);
