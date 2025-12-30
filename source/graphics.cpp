@@ -297,6 +297,14 @@ void draw_atom_with_autotile(TilemapTownClient *client, MapTileInfo *atom, int r
 	}
 
 	switch(atom->autotile_layout) {
+		default:
+		{
+			C2D_Image *image = atom->pic.get(client);
+			if(image) {
+				C2D_DrawImageAt(*image, draw_x, draw_y, 0, NULL, 1.0f, -1.0f);
+			}
+			break;
+		}
 		case 0: // No autotiling
 		{
 			if(animation_frame == 0) {
