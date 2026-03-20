@@ -654,6 +654,8 @@ void TilemapTownClient::websocket_message(const char *text, size_t length) {
 			}
 
 			cJSON *i_remove = get_json_item(json, "remove");
+			if(cJSON_IsObject(i_remove))
+				i_remove = get_json_item(i_remove, "id");
 			if(cJSON_IsString(i_remove) || cJSON_IsNumber(i_remove)) {
 				this->who.erase(json_as_string(i_remove));
 			}
