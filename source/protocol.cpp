@@ -175,7 +175,8 @@ int pic_from_json(cJSON *json, struct Pic *out) {
 		out->x = i_x->valueint;
 		out->y = i_y->valueint;
 	} else {
-		return 0;
+		out->x = 0;
+		out->y = 0;
 	}
 
 	if(cJSON_IsNumber(i_sheet)) {
